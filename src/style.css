@@ -32,8 +32,9 @@ body{
    worse than taking a second row. */
 header{display:flex;align-items:center;gap:12px;max-width:520px;width:100%;margin-inline:auto;flex-wrap:wrap}
 h1{font-family:var(--f-display);font-weight:400;font-size:1.65rem;line-height:1;margin:0;color:var(--goo);letter-spacing:.01em;text-shadow:0 3px 0 #2f8f61}
-.stats{display:flex;gap:14px;margin-left:auto;align-items:flex-end}
-.stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
+.stats{display:flex;gap:8px;margin-left:auto;align-items:stretch}
+.stat{display:flex;flex-direction:column;align-items:center;line-height:1.1;
+  background:var(--panel);border:2px solid var(--rail);border-radius:12px;padding:3px 10px 4px;min-width:62px}
 .stat span{font-size:.66rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
 .stat b{font-size:clamp(1rem,4.2vw,1.3rem);font-weight:600;font-variant-numeric:tabular-nums}
 .btns{display:flex;gap:6px;margin-left:auto}
@@ -67,6 +68,8 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 #mode{font-size:.78rem;padding:6px 9px;border-radius:999px;border-color:var(--goo);
   color:var(--goo);background:rgba(125,255,179,.1)}
 #mode:hover{background:rgba(125,255,179,.2)}
+/* Help toggle: same square footprint as the icon buttons */
+#help{min-width:34px;padding:5px 9px;font-size:1rem;font-weight:600;line-height:1.2}
 /* Sound is icon-only so the mode toggle fits the header on a narrow phone.
    Both states use the same SVG box, so toggling never shifts the layout. */
 #snd{padding:5px;line-height:0;color:var(--muted)}
@@ -78,17 +81,48 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 #snd .on{display:none}
 #snd[aria-pressed="true"] .on{display:block}
 #snd[aria-pressed="true"] .off{display:none}
-/* Narrow phones (320px): the mode toggle costs width, and the score grows with
-   its digit count, so tighten everything that scales. */
+/* On phones the controls always take their own row, so the header does not
+   flip between one and two rows as the score gains a digit. */
+@media (max-width:520px){
+  .btns{flex-basis:100%;justify-content:flex-end}
+}
+/* Very narrow phones: tighten what still scales. */
 @media (max-width:360px){
   header{gap:7px}
   h1{font-size:1.12rem}
   .stats{gap:8px}
   .stat span{font-size:.56rem;letter-spacing:.07em}
   .stat b{font-size:1.02rem}
-  .btns{gap:4px}
-  button{padding:5px 7px;font-size:.76rem}
-  #mode{font-size:.67rem;padding:5px 7px}
-  #snd,#rst{padding:4px}
-  #snd .ico,#rst .ico{width:18px;height:18px}
+  .btns{gap:5px}
+  #mode{font-size:.72rem}
 }
+
+/* ---- How to play ---- */
+/* align-items:center would clip the top of an overflowing sheet and make it
+   unscrollable; flex-start + margin:auto centres only when there is room. */
+/* Full screen rather than boxed into the board: the short Rush board is not
+   tall enough for the sheet, and there is unused space above and below it. */
+#helpPanel{position:fixed;inset:0;background:rgba(16,8,34,.86);backdrop-filter:blur(4px);
+  display:flex;justify-content:center;padding:12px;overflow-y:auto;
+  overscroll-behavior:contain;z-index:20;
+  padding-top:max(clamp(16px,7vh,72px),env(safe-area-inset-top,0px));
+  padding-bottom:max(16px,env(safe-area-inset-bottom,0px));
+  /* Top-aligned on purpose. Centring (even `safe center`, and even with
+     margin:auto) clips the top of a sheet taller than the board and leaves it
+     unscrollable, which hid the first two lines entirely. */
+  align-items:flex-start}
+#helpPanel[hidden]{display:none}
+#helpPanel .sheet{max-width:330px;width:100%;text-align:left}
+#helpPanel h2{font-family:var(--f-display);font-weight:400;font-size:1.5rem;margin:0 0 8px;color:var(--goo)}
+#helpPanel h3{font-size:.82rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+  margin:11px 0 5px;font-weight:600}
+#helpPanel h3 small{text-transform:none;letter-spacing:0;font-size:.74rem;opacity:.75;font-weight:400}
+#helpPanel ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+#helpPanel li,#helpPanel .modes{font-size:.82rem;line-height:1.4;color:var(--ink);margin:0}
+#helpPanel strong{color:var(--goo);font-weight:600}
+#helpPanel .power{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px}
+#helpPanel .power canvas{flex:none}
+#helpPanel .power b{display:block;font-size:.86rem;color:var(--ink);margin-bottom:1px}
+#helpPanel .power p{margin:0;font-size:.76rem;line-height:1.35;color:var(--muted)}
+#helpClose{display:block;width:100%;margin-top:12px;font-size:1rem;padding:9px;
+  background:var(--goo);color:#12301f;border-color:#2f8f61}

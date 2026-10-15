@@ -56,6 +56,48 @@ Nine tiers. Radius in world units. Score is awarded when that tier is **created*
 
 ---
 
+## 3a. Power slimes
+
+About **3% of spawns** arrive as a power instead of a tier slime — split evenly
+between the three kinds, so each is roughly 1% — drawn from the seeded RNG like
+every other gameplay decision. They show in the NEXT preview, so
+you get one shove to place them. Powers never merge, whatever tier they
+nominally carry, and both are consumed on use.
+
+- **Bomb** — detonates the instant it touches anything. Destroys every slime
+  within **86 units**, paying out each one's tier value, then shoves the
+  survivors at the rim. Points are awarded **without** the combo multiplier: the
+  bomb is an escape hatch, not a chain. It is the relief valve for a cluttered
+  board.
+- **Magnet** — **sticks to the first slime it touches, or to the back wall**,
+  anchors there, and drags
+  everything within **150 units** toward itself for **1.1 s** before vanishing,
+  leaving the clump behind. A setup tool: it builds the chain, you bank it. Fired
+  up an empty lane it clamps onto the back wall, and if it somehow stops without
+  touching anything it still fires rather than sitting inert. The side and near
+  walls bounce it normally. It is drawn as an actual horseshoe magnet, not a slime, so it never
+  reads as something you could merge.
+- **Rainbow** — merges with whatever ordinary slime it touches, producing that
+  slime's next tier up. It answers the orphan problem: one big slime with no
+  partner is otherwise dead weight on the board. Landing one on a King Goo
+  annihilates both for +250, exactly as two King Goos would. It will not merge
+  with another power.
+
+Both use the blast's `heft` curve, so light slimes fly and heavy ones barely
+shift.
+
+**Rate matters more than it looks, and the budget is fixed.** At 7% powers
+roughly doubled a run (Rush 147 → 259 shoves) because the bomb clears the board
+faster than it fills. 3% keeps Rush near 3 minutes. Adding a kind **splits** that
+3% rather than adding to it — introducing the rainbow left run length unchanged
+(Rush 183 → 181 shoves) while making King Goo easier to reach (4/30 → 8/30).
+
+**A trap worth remembering**: the magnet's pull accumulates ~1.4 units/step,
+which is below `SNAP_SPEED` (2). The clean-stop rule zeroed it every step and
+nothing moved at all. Pulled slimes are flagged and exempted from the snap.
+
+---
+
 ## 4. Physics
 
 Custom, hand-rolled 2D circle physics (no library). Fixed timestep **1/120 s**, max 8 substeps per frame, frame dt capped at 0.05 s.
@@ -64,7 +106,7 @@ Per body, per step:
 
 - **Friction**: exponential damping `v *= exp(-FRICTION * dt)` with `FRICTION = 0.95`, plus a small constant deceleration of `14 units/s²` along the velocity direction so slimes come to a clean stop. Speeds under 2 snap to 0.
 - **Integrate**: `x += vx*dt`, `y += vy*dt`.
-- **Walls**: clamp the position inside `[r, W-r] × [r, H-r]` and reflect the velocity component with restitution `REST = 0.5`.
+- **Walls**: clamp the position inside `[r, W-r] × [r, H-r]` and reflect the velocity component with restitution `REST = 0.5` — except the **far wall**, which uses `TOP_REST = 0.25`. Every shot reaches that wall at full speed, so it is the bounce the player feels most; at 0.5 a shot rebounded 169 units back down the table, which played as too bouncy.
 
 Collisions (pairwise, two passes per step):
 
@@ -93,17 +135,32 @@ When two same-tier slimes touch:
 
 Chain reactions come naturally from blasts and from new slimes touching same-tier neighbors.
 
-### 5a. Combo multiplier
+### 5a. Chain and streak
 
-Merges that land close together multiply each other, which is what rewards setting up a chain rather than merging one pair at a time.
+Scoring rewards two things, and neither is time-based.
 
-- Each merge checks a countdown. If it is still running, the combo steps up by one (capped per profile — **9** in Classic, effectively uncapped in Rush); otherwise the combo resets to **1**. Either way the countdown is set back to **1.0 s**.
-- Points awarded = tier points (or the King Goo 250) **× the combo**.
-- A floating `+N` rises at the merge point, and from ×2 up a green `COMBO ×N` rises above it. Both are clamped away from the walls so they stay readable.
-- A four-merge chain of mid tiers is worth about 210 points, against 68 unmultiplied.
-- A live `×N` chip sits in the launch zone opposite the NEXT preview, with a bar draining over the window.
+- **Chain** — merges that cascade from a single shove. The nth merge of a shove
+  pays **×n**. The chain resets on every launch, so shoving again early cuts
+  your own cascade short. A four-merge cascade is worth 1+2+3+4 = 10× base
+  rather than 4×.
+- **Streak** — consecutive shoves that each merged something, worth
+  **×(1 + 0.25 × streak)**, capped at ×3. It breaks the moment a shove merges
+  nothing.
 
-Measured over 40 simulated games: under Classic's ×9 cap the combo maxes out in 39/40 runs even for random play, carrying no information. Uncapped it separates — skilled play reaches a median ×21 (max 40) against random play's ×15.
+Points for a merge = tier value × chain × streak, so a late merge in a long
+cascade during a good streak is worth many times a lone merge.
+
+**Why not a time window.** The original rule multiplied any merges landing
+within 1 s of each other. With a 0.45 s cooldown, that rewarded shoving fast:
+merges from unrelated shoves chained purely because the player spammed the
+launch line. Measured over 30 games, careful aimed play scored **0.56×** what
+random fast spamming scored — the system actively punished thinking, and random
+play reached combo ×17 against careful play's ×6. Under chain and streak the
+same comparison is **1.54×** in favour of careful play.
+
+A live readout sits in the launch zone opposite the NEXT chip: the chain
+multiplier, and the streak below it. It holds until your next shove rather than
+ticking away.
 
 ---
 
@@ -137,6 +194,9 @@ Each slime is drawn procedurally on canvas:
 - **Face**: two eyes with pupils that look along the velocity (or up when waiting); random blinks every 2–6 s; pink cheeks from tier 1 up; a smile by default, an open "O" mouth after merging, a frown in danger.
 - Tiers 7–8 wear a gold **crown**; King Goo's crown has a pink gem.
 - Splat particles fade in ~0.7 s; floating "+N" text rises and fades over 1 s.
+- Slimes near a merge or blast pull a surprised open-mouth face, strongest closest
+  in, out to 1.5× the shockwave's physical reach — so the neighbourhood reacts,
+  not just the slimes actually knocked about.
 - Respect `prefers-reduced-motion` (fewer particles).
 
 HUD:
@@ -146,7 +206,7 @@ HUD:
 - In-canvas: a "NEXT" preview chip tucked just under the overflow line, a faint rail along the launch line, and a dotted lane guide above the waiting slime (brighter while dragging). The hint "Drag to aim, let go to shove" shows until the first merge, and is replaced by a "N from your best!" nudge once the score is within 80% of the stored best, then a gold "NEW BEST!" on passing it.
   - The NEXT chip sits above the waiting slime's reach on purpose. It used to share the launch row, where the rail cut through it and the slime could be dragged underneath it.
 - Big merges (tier 5+) shake the screen, scaled by tier, and particle counts scale with the combo. All of it is skipped under `prefers-reduced-motion`.
-- The first load seeds 6 sample slimes on the table so the screen isn't empty; New game starts with an empty table.
+- Every game starts with an empty table.
 
 ---
 
@@ -154,9 +214,18 @@ HUD:
 
 All synthesized with WebAudio oscillators (no files). The audio context starts on the first touch.
 
+All synthesized with WebAudio — oscillators, plus filtered white noise for
+anything that needs texture rather than pitch. The noise buffer is generated
+once and replayed, since rebuilding it per shot churns tens of thousands of
+samples and phone browsers punish that.
+
 - **Shove**: triangle wave 260 → 520 Hz, 0.1 s.
-- **Merge**: sine sweep up then a triangle sweep down; pitch drops as tier rises (`620 - tier*48` Hz base).
+- **Merge**: sine sweep up then a triangle sweep down; pitch drops as tier rises (`620 - tier*48` Hz base). Tiers 5+ get a low body underneath.
 - **Bump**: a short low thud on impacts faster than 120, throttled to one per 70 ms.
+- **Bomb**: a bright crack, then noise through a lowpass slamming 3000 → 110 Hz, over a 150 → 30 Hz body, with a scrap of pitched debris after it.
+- **Magnet**: a clack as it clamps on, then two sines detuned by 7 Hz rising together over ~0.95 s — about as long as the pull lasts — with an airy noise swell under them.
+- **Rainbow**: a five-note ascending arpeggio with octave sparkle and a shimmer tail. Rainbow merges carry a flag on the merge event so they can sound different from an ordinary merge.
+- **New best**: a rising three-note flourish.
 - **Game over**: sawtooth 400 → 90 Hz, 0.6 s.
 
 ---
@@ -169,7 +238,8 @@ LAUNCH_Y = H - 46, LINE_Y = H - 108
 MAX_V = 950            // launch speed, straight up
 FRICTION = 0.95        // exponential damping per second
 LINEAR_DECEL = 14      // units/s², stops slimes cleanly
-REST = 0.5             // restitution for walls and slime-slime hits
+REST = 0.5             // restitution for side/near walls and slime-slime hits
+TOP_REST = 0.25        // far wall only — feel, not balance
 COOLDOWN = 0.45 s      // between shots
 DANGER_TIME = 2.2 s    // resting past the line before game over
 ARM_AGE = 1.3 s

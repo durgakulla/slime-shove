@@ -39,18 +39,22 @@ export const DEFAULT_PROFILE = PROFILES.classic;
 
 const MODE_KEY = 'slimeShoveMode';
 const SCORING_KEY = 'slimeShoveScoring';
-const SCORING_VERSION = '2';
+const SCORING_VERSION = '3';
 
 /**
- * Scores from before the combo was uncapped are not comparable — the old ×9
- * ceiling was hit in nearly every run, so lifting it inflates totals two to
- * three times over. Clear Classic's record once rather than leave a best that
- * can never be read as meaningful. Rush has always been uncapped.
+ * Records set under an older scoring rule are not comparable to current ones,
+ * so they are cleared once rather than left as a best nobody can read.
+ *
+ *   v2 — the combo cap was lifted, inflating totals.
+ *   v3 — the time-window combo was replaced by chain and streak, which removed
+ *        the spam bonus and cut typical scores by roughly a third.
+ *
+ * Bump SCORING_VERSION whenever scoring changes enough to break comparability.
  */
 export function migrateScores(): void {
   try {
     if (localStorage.getItem(SCORING_KEY) === SCORING_VERSION) return;
-    localStorage.removeItem(PROFILES.classic.bestKey);
+    for (const p of Object.values(PROFILES)) localStorage.removeItem(p.bestKey);
     localStorage.setItem(SCORING_KEY, SCORING_VERSION);
   } catch {
     /* private mode — nothing stored, nothing to migrate */

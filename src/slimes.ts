@@ -1,7 +1,7 @@
 // Tier data and the procedural slime renderer (DESIGN.md §3, §7).
 
-import type { DrawOpts } from './types';
-import type { Slime } from './types';
+import { POWER_R } from './constants';
+import type { DrawOpts, PowerKind, Slime, Spawn } from './types';
 
 export interface Tier {
   n: string;
@@ -57,8 +57,42 @@ export const KING_POINTS = 250;
 
 let nextId = 1;
 
-export function body(t: number, x: number, y: number, vx = 0, vy = 0): Slime {
-  const r = TIERS[t].r;
+/** Colours for the two power slimes, in the same shape as a tier. */
+export const POWERS: Record<PowerKind, { c: string; light: string; dark: string; rim: string }> = {
+  bomb: { c: '#4a4063', light: mix('#4a4063', 0.45), dark: mix('#4a4063', -0.45), rim: '#17122b' },
+  magnet: { c: '#8fb6ff', light: mix('#8fb6ff', 0.5), dark: mix('#8fb6ff', -0.4), rim: '#2b3f73' },
+  // Base tones only — the rainbow is actually filled with a shifting gradient
+  // across the tier colours, so it reads as "any tier".
+  rainbow: { c: '#c9a6ff', light: '#ffffff', dark: '#7a5bbf', rim: '#4a2f7a' },
+};
+
+/**
+ * The colour that represents whatever is queued, used for the aim guide.
+ * Powers get their own signature colour rather than their body colour — the
+ * bomb's body is near-black and would vanish against the table.
+ */
+export function spawnColor(s: Spawn, time = 0): string {
+  if (!s.power) return TIERS[s.t].c;
+  if (s.power === 'bomb') return '#ffd24a'; // its fuse spark
+  if (s.power === 'magnet') return '#ff5d73'; // its red arms
+  const sweep = [0, 2, 3, 5, 6, 7]; // rainbow cycles the tier palette
+  return TIERS[sweep[Math.floor(Math.abs(time) * 2) % sweep.length]].c;
+}
+
+/** Radius of whatever is queued — powers are a fixed size, tiers are not. */
+export function spawnRadius(s: Spawn): number {
+  return s.power ? POWER_R : TIERS[s.t].r;
+}
+
+export function body(
+  t: number,
+  x: number,
+  y: number,
+  vx = 0,
+  vy = 0,
+  power?: PowerKind,
+): Slime {
+  const r = power ? POWER_R : TIERS[t].r;
   return {
     id: nextId++,
     t,
@@ -78,6 +112,7 @@ export function body(t: number, x: number, y: number, vx = 0, vy = 0): Slime {
     danger: 0,
     armed: false,
     ang: 0,
+    power,
   };
 }
 
@@ -111,6 +146,87 @@ function blobPath(ctx: CanvasRenderingContext2D, time: number, r: number, seed: 
   ctx.closePath();
 }
 
+
+/**
+ * A horseshoe magnet: red arms, steel tips, opening downward. Drawn as a real
+ * object rather than a slime wearing a badge, so it reads instantly as a tool
+ * and not as something you could merge.
+ */
+function drawMagnet(
+  ctx: CanvasRenderingContext2D,
+  time: number,
+  r: number,
+  pull?: number,
+): void {
+  const Ro = r * 0.95, // outer radius of the arc
+    arm = r * 0.46, // thickness of each arm
+    Ri = Ro - arm,
+    L = r * 0.52, // how far the legs drop below centre
+    tip = r * 0.3; // steel tip height
+  ctx.save();
+  ctx.translate(0, r * 0.18); // centre the whole shape on the body origin
+
+  // body outline: down the left arm, over the top, down the right arm, back
+  ctx.beginPath();
+  ctx.moveTo(-Ro, L);
+  ctx.lineTo(-Ro, 0);
+  // anticlockwise=false here: in canvas coords (y down) that sweeps PI -> 2PI,
+  // which passes over the TOP. Passing `true` arcs under the bottom instead and
+  // fills the horseshoe's gap.
+  ctx.arc(0, 0, Ro, Math.PI, 0, false);
+  ctx.lineTo(Ro, L);
+  ctx.lineTo(Ri, L);
+  ctx.lineTo(Ri, 0);
+  ctx.arc(0, 0, Ri, 0, Math.PI, true);
+  ctx.lineTo(-Ri, L);
+  ctx.closePath();
+
+  const g = ctx.createLinearGradient(-Ro, -Ro, Ro, L);
+  g.addColorStop(0, '#ff8a93');
+  g.addColorStop(0.45, '#e8273f');
+  g.addColorStop(1, '#8e0f22');
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.4, r * 0.055);
+  ctx.strokeStyle = '#5e0a16';
+  ctx.stroke();
+
+  // steel tips at the business end of each leg
+  const steel = ctx.createLinearGradient(0, L - tip, 0, L);
+  steel.addColorStop(0, '#f2f6ff');
+  steel.addColorStop(0.5, '#c3ccdd');
+  steel.addColorStop(1, '#8e99ad');
+  for (const sx of [-1, 1]) {
+    ctx.beginPath();
+    ctx.rect(sx < 0 ? -Ro : Ri, L - tip, arm, tip);
+    ctx.fillStyle = steel;
+    ctx.fill();
+    ctx.strokeStyle = '#5a6373';
+    ctx.lineWidth = Math.max(1.2, r * 0.045);
+    ctx.stroke();
+  }
+
+  // highlight along the top of the arc
+  ctx.beginPath();
+  ctx.arc(0, 0, Ro - arm * 0.3, Math.PI * 1.15, Math.PI * 1.55);
+  ctx.lineWidth = Math.max(1.5, r * 0.1);
+  ctx.strokeStyle = 'rgba(255,255,255,.4)';
+  ctx.stroke();
+  ctx.restore();
+
+  // pull rings while it is working
+  if (pull) {
+    ctx.strokeStyle = `rgba(143,182,255,${(0.55 * pull).toFixed(2)})`;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const k = (time * 1.6 + i / 3) % 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r + k * r * 2.6, 0, 7);
+      ctx.stroke();
+    }
+  }
+}
+
 export function drawSlime(
   ctx: CanvasRenderingContext2D,
   time: number,
@@ -119,8 +235,8 @@ export function drawSlime(
   y: number,
   o: DrawOpts = {},
 ): void {
-  const T = TIERS[t],
-    r = T.r * (o.scale ?? 1);
+  const T = o.power ? POWERS[o.power] : TIERS[t];
+  const r = o.radius !== undefined ? o.radius * (o.scale ?? 1) : TIERS[t].r * (o.scale ?? 1);
   const vx = o.vx || 0,
     vy = o.vy || 0,
     sp = Math.hypot(vx, vy);
@@ -130,7 +246,13 @@ export function drawSlime(
   // soft drop shadow, offset down-right
   ctx.fillStyle = 'rgba(8,2,22,.32)';
   ctx.beginPath();
-  ctx.ellipse(r * 0.1, r * 0.28, r * 1.02, r * 0.86, 0, 0, Math.PI * 2);
+  if (o.power === 'magnet') {
+    // A flat shadow under the magnet. The body-sized blob used for slimes made
+    // it read as a round thing wearing a magnet, which is the whole problem.
+    ctx.ellipse(0, r * 0.74, r * 0.8, r * 0.18, 0, 0, Math.PI * 2);
+  } else {
+    ctx.ellipse(r * 0.1, r * 0.28, r * 1.02, r * 0.86, 0, 0, Math.PI * 2);
+  }
   ctx.fill();
 
   // squash & stretch along the direction of travel, then wobble
@@ -142,13 +264,38 @@ export function drawSlime(
   const w = (o.wob || 0) * Math.sin(o.ph || 0);
   ctx.scale(1 + w, 1 - w);
 
+  if (o.power === 'magnet') {
+    drawMagnet(ctx, time, r, o.pull);
+    ctx.restore();
+    return;
+  }
+
   blobPath(ctx, time, r, o.seed || 0);
-  const g = ctx.createRadialGradient(-r * 0.35, -r * 0.45, r * 0.05, 0, 0, r * 1.08);
-  g.addColorStop(0, T.light);
-  g.addColorStop(0.55, T.c);
-  g.addColorStop(1, T.dark);
-  ctx.fillStyle = g;
-  ctx.fill();
+  if (o.power === 'rainbow') {
+    // A slowly rotating sweep through the tier palette.
+    const ang = time * 0.9 + (o.seed ?? 0);
+    const gx = Math.cos(ang) * r,
+      gy = Math.sin(ang) * r;
+    const g = ctx.createLinearGradient(-gx, -gy, gx, gy);
+    const sweep = [0, 2, 3, 5, 6, 7];
+    sweep.forEach((tier, i) => g.addColorStop(i / (sweep.length - 1), TIERS[tier].c));
+    ctx.fillStyle = g;
+    ctx.fill();
+    // a soft white core so the face stays readable over the colours
+    const core = ctx.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.05, 0, 0, r);
+    core.addColorStop(0, 'rgba(255,255,255,.75)');
+    core.addColorStop(0.6, 'rgba(255,255,255,.15)');
+    core.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = core;
+    ctx.fill();
+  } else {
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.45, r * 0.05, 0, 0, r * 1.08);
+    g.addColorStop(0, T.light);
+    g.addColorStop(0.55, T.c);
+    g.addColorStop(1, T.dark);
+    ctx.fillStyle = g;
+    ctx.fill();
+  }
   ctx.lineWidth = Math.max(1.5, r * 0.07);
   ctx.strokeStyle = T.rim;
   ctx.globalAlpha = 0.55;
@@ -169,7 +316,7 @@ export function drawSlime(
   ctx.fill();
 
   // crown for the top two tiers; King Goo gets a gem
-  if (t >= 7) {
+  if (t >= 7 && !o.power) {
     const cw = r * 0.62,
       cy = -r * 0.82;
     ctx.fillStyle = '#ffd34d';
@@ -194,10 +341,31 @@ export function drawSlime(
     }
   }
 
+  // power emblems, so a bomb or magnet reads instantly
+  if (o.power === 'bomb') {
+    // fuse curling off the top, with a spark that flickers
+    ctx.strokeStyle = '#d8cdf0';
+    ctx.lineWidth = Math.max(1.6, r * 0.09);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.12, -r * 0.82);
+    ctx.quadraticCurveTo(r * 0.52, -r * 1.06, r * 0.62, -r * 0.72);
+    ctx.stroke();
+    const flick = 0.7 + 0.3 * Math.sin(time * 22 + (o.seed ?? 0));
+    ctx.fillStyle = '#ffd24a';
+    ctx.beginPath();
+    ctx.arc(r * 0.62, -r * 0.72, r * 0.16 * flick, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,120,60,${(0.5 * flick).toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(r * 0.62, -r * 0.72, r * 0.26 * flick, 0, 7);
+    ctx.fill();
+  }
+
   // face — pupils track the direction of travel, or look where told
-  const er = Math.max(2.2, r * 0.14),
-    ex = r * 0.33,
-    ey = -r * 0.06;
+  const er = Math.max(2.2, r * (o.power ? 0.11 : 0.14)),
+    ex = r * (o.power ? 0.27 : 0.33),
+    ey = o.power ? r * 0.3 : -r * 0.06;
   let lx = 0,
     ly = 0;
   if (sp > 20) {
@@ -233,7 +401,7 @@ export function drawSlime(
   }
 
   // cheeks from tier 1 up
-  if (t >= 1) {
+  if (t >= 1 && !o.power) {
     ctx.fillStyle = 'rgba(255,90,150,.35)';
     for (const sx of [-1, 1]) {
       ctx.beginPath();

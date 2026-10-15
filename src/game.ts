@@ -5,7 +5,6 @@ import { ensureAudio, sfx } from './audio';
 import {
   applyProfile,
   BUMP_SPEED,
-  COMBO_WINDOW,
   COOLDOWN,
   FIXED_DT,
   H,
@@ -13,16 +12,28 @@ import {
   LINE_Y,
   MAX_FRAME_DT,
   MAX_SUBSTEPS,
+  MAGNET_TIME,
   MAX_V,
+  POWER_R,
   W,
   WARN_RANGE,
 } from './constants';
-import { nextCombo } from './combo';
+import { chainMultiplier, mergeScore, onLaunch, streakMultiplier } from './combo';
 import { hideGameOver, renderLadder, setBest, setScore, showGameOver } from './hud';
 import { initInput, type InputHandle } from './input';
 import { maybeOfferInstall } from './install';
-import { pickTier, step } from './physics';
-import { KING_POINTS, MAXT, POINTS, TIERS, body, drawSlime } from './slimes';
+import { pickSpawn, step } from './physics';
+import {
+  KING_POINTS,
+  MAXT,
+  POINTS,
+  POWERS,
+  TIERS,
+  body,
+  drawSlime,
+  spawnColor,
+  spawnRadius,
+} from './slimes';
 import { makeRng, randomSeed, type Rng } from './rng';
 import { DEFAULT_PROFILE, type Profile } from './tuning';
 import type { GameEvent, State } from './types';
@@ -66,8 +77,14 @@ let rings: Ring[] = [];
 let time = 0;
 let lineHot = 0;
 let pressure = 0;
+/** Set while the help sheet is open, so you cannot lose while reading it. */
+let paused = false;
 /** Screen shake magnitude in world units; decays every frame. */
 let shake = 0;
+/** 1 -> 0 after a power arrives on the line; drives the one-shot wave. */
+let powerFlash = 0;
+/** Whether a power was on the line last frame, so the wave fires only once. */
+let powerOnLine = false;
 /** Counts down after each combo step so the meter can pop. */
 let comboPop = 0;
 /** True once this run has passed the stored best, so it only celebrates once. */
@@ -99,47 +116,29 @@ function saveBest(n: number): void {
 }
 
 // ---------- state ----------
-function freshState(demo: boolean, seed = randomSeed()): State {
+function freshState(seed = randomSeed()): State {
   rnd = makeRng(seed);
   const s: State = {
     bodies: [],
     score: 0,
     maxTier: 0,
-    pending: pickTier(rnd),
-    next: pickTier(rnd),
+    pending: pickSpawn(rnd),
+    next: pickSpawn(rnd),
     cool: 0,
     launchX: W / 2,
     over: false,
-    combo: 0,
-    comboTimer: 0,
+    chain: 0,
+    streak: 0,
     seed,
   };
-  if (demo) {
-    // The first load shows a few slimes so the table isn't empty (DESIGN.md §7).
-    const sample: [number, number, number][] = [
-      [3, 110, 150],
-      [2, 210, 120],
-      [1, 280, 200],
-      [4, 175, 250],
-      [0, 70, 260],
-      [2, 300, 300],
-    ];
-    for (const [t, x, y] of sample) {
-      const b = body(t, x, y);
-      b.armed = true;
-      b.age = 5;
-      s.bodies.push(b);
-    }
-    s.maxTier = 4;
-  }
   return s;
 }
 
 // ---------- scoring ----------
-function bumpCombo(): void {
-  S.combo = nextCombo(S.combo, S.comboTimer);
-  S.comboTimer = COMBO_WINDOW;
-  if (S.combo >= 2) comboPop = 1;
+/** One more merge in the current shove. */
+function bumpChain(): void {
+  S.chain++;
+  if (S.chain >= 2) comboPop = 1;
 }
 
 function addScore(p: number, x: number, y: number): void {
@@ -161,8 +160,8 @@ function addScore(p: number, x: number, y: number): void {
   // Floating text is centred, so keep it clear of the walls or it clips.
   const clamp = (v: number, pad: number) => Math.max(pad, Math.min(W - pad, v));
   texts.push({ x: clamp(x, 18), y, txt: '+' + p, life: 1, style: 'score' });
-  if (S.combo >= 2) {
-    texts.push({ x: clamp(x, 52), y: y - 22, txt: `COMBO ×${S.combo}`, life: 1.2, style: 'combo' });
+  if (S.chain >= 2) {
+    texts.push({ x: clamp(x, 52), y: y - 22, txt: `CHAIN ×${S.chain}`, life: 1.2, style: 'combo' });
   }
 }
 
@@ -195,10 +194,10 @@ function applyEvents(ev: GameEvent[]): void {
         rings.push({ x: e.x, y: e.y, R: e.R, life: 1 });
         break;
       case 'merge': {
-        bumpCombo();
-        addScore(POINTS[e.tier] * S.combo, e.x, e.y);
+        bumpChain();
+        addScore(mergeScore(POINTS[e.tier], S.chain, S.streak), e.x, e.y);
         // A long chain throws more goo, so a big combo visibly reads as bigger.
-        const boost = 1 + Math.min(S.combo, 8) * 0.18;
+        const boost = 1 + Math.min(S.chain, 8) * 0.18;
         splat(
           e.x,
           e.y,
@@ -206,15 +205,34 @@ function applyEvents(ev: GameEvent[]): void {
           Math.round((10 + e.fromTier * 2) * boost),
           120 + e.fromTier * 12,
         );
-        sfx.merge(e.tier);
+        if (e.rainbow) sfx.rainbow();
+        else sfx.merge(e.tier);
         // Only the heavy tiers shake the table, or it would never sit still.
         if (!reduced && e.tier >= 5) shake = Math.min(9, shake + (e.tier - 4) * 1.4);
         tierChanged = true;
         break;
       }
+      case 'bomb': {
+        // Points without a combo multiplier — this is a relief valve, not a chain.
+        if (e.points > 0) addScore(e.points, e.x, e.y);
+        for (const tier of e.colors) splat(e.x, e.y, TIERS[+tier].c, 8, 200);
+        splat(e.x, e.y, '#ffd24a', 26, 300);
+        rings.push({ x: e.x, y: e.y, R: e.R, life: 1 });
+        sfx.bomb();
+        if (!reduced) shake = 12;
+        tierChanged = true;
+        break;
+      }
+      case 'magnetOn':
+        sfx.magnet();
+        rings.push({ x: e.x, y: e.y, R: e.R, life: 1 });
+        break;
+      case 'magnetOff':
+        splat(e.x, e.y, POWERS.magnet.c, 14, 150);
+        break;
       case 'king':
-        bumpCombo();
-        addScore(KING_POINTS * S.combo, e.x, e.y);
+        bumpChain();
+        addScore(mergeScore(KING_POINTS, S.chain, S.streak), e.x, e.y);
         splat(e.x, e.y, TIERS[MAXT].c, 40, 260);
         sfx.king();
         if (!reduced) shake = 11;
@@ -233,17 +251,19 @@ function gameOver(): void {
 
 // ---------- input wiring ----------
 function aimAt(worldX: number): void {
-  const r = TIERS[S.pending].r;
+  const r = spawnRadius(S.pending);
   S.launchX = Math.max(r + 4, Math.min(W - r - 4, worldX));
 }
 
 function launch(): void {
   if (S.over || S.cool > 0) return;
-  const b = body(S.pending, S.launchX, LAUNCH_Y, 0, -MAX_V);
+  // Score the shove that just finished, then start a fresh chain.
+  onLaunch(S);
+  const b = body(S.pending.t, S.launchX, LAUNCH_Y, 0, -MAX_V, S.pending.power);
   b.wob = 0.25;
   S.bodies.push(b);
   S.pending = S.next;
-  S.next = pickTier(rnd);
+  S.next = pickSpawn(rnd);
   S.cool = COOLDOWN;
   sfx.shove();
 }
@@ -314,7 +334,7 @@ function drawTable(): void {
 
 function drawAim(): void {
   if (S.over || S.cool > 0) return;
-  const r = TIERS[S.pending].r,
+  const r = spawnRadius(S.pending),
     x = S.launchX;
   ctx.strokeStyle = 'rgba(255,255,255,.1)';
   ctx.lineWidth = 2;
@@ -323,23 +343,56 @@ function drawAim(): void {
   ctx.lineTo(W - 14, LAUNCH_Y);
   ctx.stroke();
 
+  // The guide takes the colour of whatever is on the line, so you can see what
+  // you are about to shove without looking away from where it will land. A
+  // power also makes it glow, so the whole lane signals what you are holding.
   const aiming = input.isAiming();
-  ctx.fillStyle = aiming ? 'rgba(125,255,179,.85)' : 'rgba(125,255,179,.25)';
-  for (let y = LAUNCH_Y - r - 10; y > 8; y -= 16) {
-    ctx.beginPath();
-    ctx.arc(x, y, aiming ? 2.6 : 2, 0, 7);
-    ctx.fill();
+  const colour = spawnColor(S.pending, time);
+  const power = !!S.pending.power;
+  const dots = (radius: number): void => {
+    for (let y = LAUNCH_Y - r - 10; y > 8; y -= 16) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, 7);
+      ctx.fill();
+    }
+  };
+  ctx.save();
+  if (power) {
+    // Bloom pass, drawn additively under the dots. Two flat passes rather than
+    // shadowBlur or a gradient per dot: there are ~28 dots every frame and
+    // this stays cheap on a phone.
+    const pulse = reduced ? 1 : 0.8 + 0.2 * Math.sin(time * 4.5);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = colour;
+    // Three widening passes rather than two: with only two, the alpha step is
+    // visible as a hard ring around each dot instead of a falloff.
+    const base = aiming ? 1 : 0.55;
+    for (const [radius, alpha] of [
+      [8.5, 0.1],
+      [5.6, 0.13],
+      [3.6, 0.17],
+    ] as const) {
+      ctx.globalAlpha = alpha * base * pulse;
+      dots(radius * pulse);
+    }
   }
+  ctx.globalCompositeOperation = power ? 'lighter' : 'source-over';
+  ctx.globalAlpha = aiming ? 0.9 : 0.34;
+  ctx.fillStyle = colour;
+  dots(power ? (aiming ? 3 : 2.4) : aiming ? 2.6 : 2);
+  ctx.restore();
 }
 
 /**
- * Live combo readout, mirroring the NEXT chip on the opposite side. It sits in
- * the launch zone where no slime can cover it, and the bar drains with the
- * window so you can see how long you have to land the next merge.
+ * Chain and streak readout, mirroring the NEXT chip on the opposite side. It
+ * sits in the launch zone where no slime can cover it. There is no timer bar
+ * any more: the chain holds until your next shove, it does not tick away.
  */
 function drawComboMeter(): void {
-  if (S.combo < 2 || S.comboTimer <= 0) return;
-  const w = 60,
+  const showChain = S.chain >= 2;
+  const showStreak = S.streak >= 2;
+  if (!showChain && !showStreak) return;
+  const w = 64,
     h = 26,
     x = W - w - 8,
     y = LINE_Y + 2;
@@ -349,23 +402,25 @@ function drawComboMeter(): void {
   ctx.scale(pop, pop);
   ctx.translate(-w / 2, -h / 2);
 
-  ctx.fillStyle = 'rgba(125,255,179,.14)';
+  ctx.fillStyle = showChain ? 'rgba(125,255,179,.16)' : 'rgba(255,255,255,.08)';
   ctx.beginPath();
   ctx.roundRect(0, 0, w, h, 8);
   ctx.fill();
 
-  ctx.fillStyle = '#7dffb3';
-  ctx.font = '400 15px "Bagel Fat One", Fredoka, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`×${S.combo}`, w / 2, h / 2 + 2);
+  if (showChain) {
+    ctx.fillStyle = '#7dffb3';
+    ctx.font = '400 14px "Bagel Fat One", Fredoka, sans-serif';
+    ctx.fillText(`×${chainMultiplier(S.chain)}`, w / 2, showStreak ? h / 2 : h / 2 + 2);
+  }
+  if (showStreak) {
+    // The streak multiplier is the quieter, longer-running of the two.
+    ctx.fillStyle = 'rgba(255,216,74,.9)';
+    ctx.font = `600 ${showChain ? 7 : 9}px Fredoka, system-ui, sans-serif`;
+    const label = `STREAK ${S.streak} · ×${streakMultiplier(S.streak).toFixed(2)}`;
+    ctx.fillText(label, w / 2, showChain ? h - 5 : h / 2 + 3);
+  }
   ctx.textAlign = 'left';
-
-  // draining window bar
-  const frac = Math.max(0, Math.min(1, S.comboTimer / COMBO_WINDOW));
-  ctx.fillStyle = 'rgba(125,255,179,.75)';
-  ctx.beginPath();
-  ctx.roundRect(7, h - 6, (w - 14) * frac, 3, 1.5);
-  ctx.fill();
   ctx.restore();
 }
 
@@ -380,33 +435,72 @@ function draw(): void {
 
   // near-to-far so bigger slimes in front overlap correctly
   const sorted = [...S.bodies].sort((a, b) => a.y - b.y);
-  for (const b of sorted) drawSlime(ctx, time, b.t, b.x, b.y, b);
+  for (const b of sorted) {
+    drawSlime(ctx, time, b.t, b.x, b.y, {
+      ...b,
+      radius: b.power ? POWER_R : undefined,
+      pull: b.fuse !== undefined ? Math.max(0, b.fuse / MAGNET_TIME) : undefined,
+    });
+  }
 
   if (!S.over) {
     // "NEXT" preview, tucked into the top of the launch zone. The waiting slime
     // can be dragged the full width of the table, so anything sharing its row
     // gets covered; this band sits just below the overflow line and above the
     // largest spawnable slime's reach (LAUNCH_Y - 27), so it always stays clear.
-    const ny = LINE_Y + 2;
+    // Sits clear of the overflow line above and the waiting slime's reach
+    // below; the band between them is only ~34 units tall, so the chip is
+    // shortened rather than simply nudged down.
+    const ny = LINE_Y + 6;
     ctx.fillStyle = 'rgba(255,255,255,.08)';
     ctx.beginPath();
-    ctx.roundRect(8, ny, 60, 26, 8);
+    ctx.roundRect(8, ny, 60, 24, 8);
     ctx.fill();
     ctx.fillStyle = 'rgba(183,165,216,.9)';
     ctx.font = '600 8px Fredoka, system-ui, sans-serif';
-    ctx.fillText('NEXT', 13, ny + 17);
-    drawSlime(ctx, time, S.next, 52, ny + 13, {
-      scale: Math.min(1, 9 / TIERS[S.next].r),
+    ctx.fillText('NEXT', 13, ny + 16);
+    drawSlime(ctx, time, S.next.t, 52, ny + 12, {
+      scale: Math.min(1, 9 / spawnRadius(S.next)),
       seed: 2,
+      power: S.next.power,
+      radius: spawnRadius(S.next),
     });
 
     if (S.cool <= 0) {
-      drawSlime(ctx, time, S.pending, S.launchX, LAUNCH_Y, {
+      // A power waiting on the line glows, so during fast play it is obvious
+      // you are holding something special before you let go of it.
+      if (S.pending.power) {
+        const pr = spawnRadius(S.pending);
+        const pulse = reduced ? 1 : 0.7 + 0.3 * Math.sin(time * 5);
+        const halo = ctx.createRadialGradient(
+          S.launchX,
+          LAUNCH_Y,
+          pr * 0.55,
+          S.launchX,
+          LAUNCH_Y,
+          pr * 2.5 * pulse,
+        );
+        halo.addColorStop(0, 'rgba(255,255,255,.34)');
+        halo.addColorStop(0.45, 'rgba(210,235,255,.12)');
+        halo.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.save();
+        // Additive, so it reads as light rather than a grey disc: plain white
+        // at low alpha over this dark table just looks like fog.
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(S.launchX, LAUNCH_Y, pr * 2.5 * pulse, 0, 7);
+        ctx.fill();
+        ctx.restore();
+      }
+      drawSlime(ctx, time, S.pending.t, S.launchX, LAUNCH_Y, {
         seed: 1,
         wob: 0.05,
         ph: time * 6,
         look: [0, -1],
         blink: time % 4 < 0.12 ? 1 : 0,
+        power: S.pending.power,
+        radius: spawnRadius(S.pending),
       });
     }
 
@@ -447,6 +541,32 @@ function draw(): void {
   }
   ctx.globalAlpha = 1;
 
+  // One-shot wave when a power loads: a broad ring of light sweeping out from
+  // the launch line across the whole board, so it is impossible to miss.
+  if (powerFlash > 0) {
+    const k = 1 - powerFlash; // 0 -> 1 as it travels
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const R = 30 + k * H * 1.25;
+    const wave = ctx.createRadialGradient(
+      S.launchX,
+      LAUNCH_Y,
+      Math.max(0, R - H * 0.42),
+      S.launchX,
+      LAUNCH_Y,
+      R,
+    );
+    wave.addColorStop(0, 'rgba(255,255,255,0)');
+    wave.addColorStop(0.72, `rgba(236,246,255,${(0.3 * powerFlash).toFixed(3)})`);
+    wave.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = wave;
+    ctx.fillRect(0, 0, W, H);
+    // a brief wash over everything at the very start of the burst
+    ctx.fillStyle = `rgba(255,255,255,${(0.1 * powerFlash * powerFlash).toFixed(3)})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
   ctx.textAlign = 'center';
   for (const t of texts) {
     ctx.globalAlpha = Math.min(1, t.life * 1.5);
@@ -472,7 +592,7 @@ function frame(now: number): void {
   last = now;
   time += dt;
 
-  if (!S.over) {
+  if (!S.over && !paused) {
     acc += dt;
     let n = 0;
     while (acc >= FIXED_DT && n < MAX_SUBSTEPS) {
@@ -491,10 +611,12 @@ function frame(now: number): void {
   }
 
   if (S.cool > 0) S.cool -= dt;
-  if (S.comboTimer > 0) {
-    S.comboTimer -= dt;
-    if (S.comboTimer <= 0) S.combo = 0;
-  }
+  // A power appearing on the launch line sets off a single wave over the board.
+  const onLine = !S.over && S.cool <= 0 && !!S.pending.power;
+  if (onLine && !powerOnLine) powerFlash = 1;
+  powerOnLine = onLine;
+  if (powerFlash > 0) powerFlash = Math.max(0, powerFlash - dt * 1.15);
+
   shake *= Math.exp(-9 * dt);
   comboPop = Math.max(0, comboPop - dt * 5);
 
@@ -548,13 +670,15 @@ export function fit(): void {
 
 // ---------- lifecycle ----------
 export function restart(): void {
-  S = freshState(false);
+  S = freshState();
   particles = [];
   texts = [];
   rings = [];
   lineHot = 0;
   pressure = 0;
   shake = 0;
+  powerFlash = 0;
+  powerOnLine = false;
   comboPop = 0;
   beatBest = false;
   runStartBest = best;
@@ -578,6 +702,10 @@ export function setProfile(p: Profile): void {
   fit();
 }
 
+export function setPaused(p: boolean): void {
+  paused = p;
+}
+
 export function currentProfile(): Profile {
   return profile;
 }
@@ -592,7 +720,7 @@ export function start(canvas: HTMLCanvasElement, stageEl: HTMLElement, p: Profil
   if (!c) throw new Error('canvas 2d unavailable');
   ctx = c;
 
-  S = freshState(true);
+  S = freshState();
   input = initInput({
     canvas,
     canAim: () => !S.over && S.cool <= 0,

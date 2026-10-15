@@ -1,6 +1,15 @@
 // Shared shapes. Lives apart from the modules that use it so physics, rendering
 // and game state can all refer to a slime without importing each other.
 
+/** Special slimes that do something instead of merging. */
+export type PowerKind = 'bomb' | 'magnet' | 'rainbow';
+
+/** What is queued on the launch line: a tier, or a power instead. */
+export interface Spawn {
+  t: number;
+  power?: PowerKind;
+}
+
 /** A slime on the table. Doubles as the options bag for drawSlime(). */
 export interface Slime {
   id: number;
@@ -22,6 +31,16 @@ export interface Slime {
   armed: boolean; // counts toward the lose condition
   ang: number; // movement angle, for squash & stretch
   dead?: boolean; // consumed by a merge this step
+  power?: PowerKind; // set only on special slimes; these never merge
+  fuse?: number; // magnet: seconds of pull left. undefined until it lands
+  /**
+   * Set each step by a magnet that is pulling this slime. Exempts it from the
+   * clean-stop snap: the pull accumulates ~1.4/step, below SNAP_SPEED, so
+   * without this the snap zeroes it every step and nothing ever moves.
+   */
+  pulled?: boolean;
+  ax?: number; // magnet: anchor, so the slimes it drags in cannot shove it
+  ay?: number;
 }
 
 /** Everything drawSlime() can be told. A Slime satisfies this as-is. */
@@ -37,19 +56,26 @@ export interface DrawOpts {
   blink?: number;
   scale?: number;
   look?: [number, number];
+  power?: PowerKind;
+  /** Overrides the tier radius — power slimes are a fixed size. */
+  radius?: number;
+  /** Magnet: 0..1 of its pull remaining, for the ring animation. */
+  pull?: number;
 }
 
 export interface State {
   bodies: Slime[];
   score: number;
   maxTier: number;
-  pending: number; // tier waiting on the launch line
-  next: number; // tier after that
+  pending: Spawn; // waiting on the launch line
+  next: Spawn; // queued after that
   cool: number;
   launchX: number;
   over: boolean;
-  combo: number;
-  comboTimer: number;
+  /** Merges so far in the current shove. Reset on every launch. */
+  chain: number;
+  /** Consecutive shoves that each merged something. */
+  streak: number;
   seed: number;
 }
 
@@ -58,7 +84,10 @@ export interface State {
  * spawn sequence can stay deterministic. game.ts drains these each step.
  */
 export type GameEvent =
-  | { kind: 'merge'; tier: number; fromTier: number; x: number; y: number }
+  | { kind: 'merge'; tier: number; fromTier: number; x: number; y: number; rainbow?: boolean }
   | { kind: 'king'; x: number; y: number }
   | { kind: 'ring'; x: number; y: number; R: number }
-  | { kind: 'bump'; v: number };
+  | { kind: 'bump'; v: number }
+  | { kind: 'bomb'; x: number; y: number; R: number; points: number; colors: string[] }
+  | { kind: 'magnetOn'; x: number; y: number; R: number }
+  | { kind: 'magnetOff'; x: number; y: number };

@@ -6,6 +6,13 @@
 
 import {
   ARM_AGE,
+  BOMB_RADIUS,
+  MAGNET_LAND_SPEED,
+  MAGNET_PULL,
+  MAGNET_RADIUS,
+  MAGNET_TIME,
+  POWER_CHANCE,
+  REACT_REACH,
   DANGER_SPEED,
   DANGER_TIME,
   FRICTION,
@@ -14,11 +21,12 @@ import {
   LINE_Y,
   REST,
   SNAP_SPEED,
+  TOP_REST,
   W,
   WARN_RANGE,
 } from './constants';
-import { MAXT, body } from './slimes';
-import type { GameEvent, Slime, State } from './types';
+import { MAXT, POINTS, body } from './slimes';
+import type { GameEvent, Slime, Spawn, State } from './types';
 
 export interface StepResult {
   /** 0..1 — how close the worst slime is to overflowing, for the line pulse. */
@@ -59,6 +67,15 @@ function blast(
       dy = b.y - y,
       d = Math.hypot(dx, dy) || 0.01,
       reach = R + b.r;
+
+    // Slimes a bit beyond the shove still notice it and pull a surprised face.
+    // The reaction reaches further than the physics so the whole neighbourhood
+    // reacts, not just the ones that actually get knocked about.
+    const notice = reach * REACT_REACH;
+    if (d < notice) {
+      b.joy = Math.max(b.joy, 0.45 + 0.45 * (1 - d / notice));
+    }
+
     if (d >= reach) continue;
     const fall = 1 - d / reach,
       heft = Math.pow(400 / b.m, 0.3);
@@ -68,6 +85,17 @@ function blast(
     b.wob = Math.min(0.35, b.wob + 0.15 * fall);
     b.armed = b.armed || b.age > 1;
   }
+}
+
+/** Clamp a magnet in place and start its pull. */
+function stickMagnet(m: Slime, ev: GameEvent[]): void {
+  if (m.fuse !== undefined) return;
+  m.fuse = MAGNET_TIME;
+  m.ax = m.x;
+  m.ay = m.y;
+  m.vx = 0;
+  m.vy = 0;
+  ev.push({ kind: 'magnetOn', x: m.x, y: m.y, R: MAGNET_RADIUS });
 }
 
 export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
@@ -84,10 +112,11 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
       b.vx -= (b.vx / sp) * d;
       b.vy -= (b.vy / sp) * d;
     }
-    if (sp < SNAP_SPEED) {
+    if (sp < SNAP_SPEED && !b.pulled) {
       b.vx = 0;
       b.vy = 0;
     }
+    b.pulled = false; // a magnet re-sets this below if it is still in range
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     if (b.x < b.r) {
@@ -105,10 +134,16 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
       }
     }
     if (b.y < b.r) {
+      // far wall — every shot arrives here at full speed
       b.y = b.r;
-      if (b.vy < 0) {
+      if (b.power === 'magnet') {
+        // A magnet clamps onto the back wall rather than bouncing off it, so
+        // firing it up an empty lane is a deliberate play. The side and near
+        // walls still bounce it normally.
+        stickMagnet(b, ev);
+      } else if (b.vy < 0) {
         impact(b, -b.vy, ev);
-        b.vy = -b.vy * REST;
+        b.vy = -b.vy * TOP_REST;
       }
     }
     if (b.y > H - b.r) {
@@ -120,8 +155,41 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
     }
   }
 
+  // --- magnets ---
+  // A magnet starts pulling once it has slowed down, drags everything nearby
+  // toward itself for MAGNET_TIME, then vanishes, leaving a clump behind.
+  for (const b of B) {
+    if (b.power !== 'magnet' || b.dead) continue;
+    if (b.fuse === undefined) {
+      // Normally it sticks on contact (below, in the collision pass). This is
+      // the fallback for a magnet shot into empty space: once it stops, it
+      // fires anyway rather than sitting inert forever.
+      if (b.age > 0.25 && Math.hypot(b.vx, b.vy) < MAGNET_LAND_SPEED) {
+        stickMagnet(b, ev);
+      }
+      continue;
+    }
+    b.fuse -= dt;
+    b.vx = 0;
+    b.vy = 0;
+    for (const o of B) {
+      if (o === b || o.dead) continue;
+      const dx = b.x - o.x,
+        dy = b.y - o.y,
+        d = Math.hypot(dx, dy) || 0.01;
+      if (d > MAGNET_RADIUS) continue;
+      // Same heft curve as a blast, so heavy slimes resist being dragged.
+      const fall = 1 - d / MAGNET_RADIUS;
+      const acc = MAGNET_PULL * fall * Math.pow(400 / o.m, 0.3) * dt;
+      o.vx += (dx / d) * acc;
+      o.vy += (dy / d) * acc;
+      o.pulled = true;
+    }
+  }
+
   // --- pairwise collisions, two passes ---
   const merges: [Slime, Slime][] = [];
+  const bombs: Slime[] = [];
   for (let k = 0; k < 2; k++) {
     for (let i = 0; i < B.length; i++) {
       const a = B[i];
@@ -135,7 +203,34 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
           d2 = dx * dx + dy * dy;
         if (d2 >= min * min) continue;
         const d = Math.sqrt(d2) || 0.01;
-        if (a.t === b.t) {
+        // A bomb goes off the instant it touches anything.
+        const bomb = a.power === 'bomb' ? a : b.power === 'bomb' ? b : null;
+        if (bomb) {
+          bomb.dead = true;
+          bombs.push(bomb);
+          break;
+        }
+        // A rainbow merges with whatever ordinary slime it meets, taking that
+        // slime's tier. Pushed as [other, rainbow] because merge resolution
+        // reads the first entry's tier — so a rainbow on a King Goo
+        // annihilates exactly as two King Goos would.
+        const rb = a.power === 'rainbow' ? a : b.power === 'rainbow' ? b : null;
+        if (rb) {
+          const other = rb === a ? b : a;
+          if (!other.power) {
+            rb.dead = other.dead = true;
+            merges.push([other, rb]);
+            break;
+          }
+        }
+        // A magnet sticks to the first thing it touches and starts pulling.
+        // Collision resolution still runs; the anchor below pins it to the spot
+        // it landed so the slimes it drags in cannot shove it away.
+        const mag = a.power === 'magnet' ? a : b.power === 'magnet' ? b : null;
+        if (mag) stickMagnet(mag, ev);
+
+        // Other powers never merge, whatever tier they nominally carry.
+        if (a.t === b.t && !a.power && !b.power) {
           a.dead = b.dead = true;
           merges.push([a, b]);
           break;
@@ -185,9 +280,50 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
       nb.y = Math.min(H - nb.r, Math.max(nb.r, nb.y));
       B.push(nb);
       S.maxTier = Math.max(S.maxTier, nb.t);
-      ev.push({ kind: 'merge', tier: nb.t, fromTier: a.t, x, y });
+      // b is the rainbow when one was involved: merges are pushed as
+      // [ordinary slime, rainbow] so the tier comes from the right one.
+      ev.push({ kind: 'merge', tier: nb.t, fromTier: a.t, x, y, rainbow: b.power === 'rainbow' });
       blast(S, x, y, nb.r * 2.4 + 30, 230 + nb.t * 22, ev, nb);
     }
+  }
+
+  // --- bombs ---
+  // Everything within reach is destroyed outright and pays out its tier value.
+  // No combo multiplier: the bomb is an escape hatch, not a chain.
+  for (const bomb of bombs) {
+    let points = 0;
+    const colors: string[] = [];
+    for (const o of B) {
+      if (o === bomb || o.dead) continue;
+      if (Math.hypot(o.x - bomb.x, o.y - bomb.y) > BOMB_RADIUS + o.r) continue;
+      o.dead = true;
+      if (!o.power) {
+        points += POINTS[o.t];
+        colors.push(String(o.t));
+      }
+    }
+    ev.push({ kind: 'bomb', x: bomb.x, y: bomb.y, R: BOMB_RADIUS, points, colors });
+    // Shove whatever survived at the edge of the blast.
+    blast(S, bomb.x, bomb.y, BOMB_RADIUS, 300, ev);
+  }
+
+  // --- magnets that have finished pulling ---
+  for (const b of B) {
+    if (b.power !== 'magnet' || b.dead || b.fuse === undefined) continue;
+    // Anchored: the slimes it drags in must not be able to shove it away.
+    if (b.ax !== undefined && b.ay !== undefined) {
+      b.x = b.ax;
+      b.y = b.ay;
+      b.vx = 0;
+      b.vy = 0;
+    }
+    if (b.fuse <= 0) {
+      b.dead = true;
+      ev.push({ kind: 'magnetOff', x: b.x, y: b.y });
+    }
+  }
+
+  if (merges.length || bombs.length || B.some((b) => b.dead)) {
     S.bodies = B.filter((b) => !b.dead);
   }
 
@@ -216,8 +352,20 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
   return { lineHot: hot, pressure: Math.max(0, Math.min(1, press)), over: false };
 }
 
-/** Tier for a newly spawned slime: 40% / 30% / 20% / 10% across tiers 0–3. */
+/** Tier for an ordinary slime: 40% / 30% / 20% / 10% across tiers 0–3. */
 export function pickTier(rnd: () => number): number {
   const x = rnd();
   return x < 0.4 ? 0 : x < 0.7 ? 1 : x < 0.9 ? 2 : 3;
+}
+
+/**
+ * What arrives on the launch line. Draws from the seeded RNG like every other
+ * gameplay decision, so a seeded run stays reproducible.
+ */
+export function pickSpawn(rnd: () => number): Spawn {
+  if (rnd() < POWER_CHANCE) {
+    const k = rnd();
+    return { t: 0, power: k < 1 / 3 ? 'bomb' : k < 2 / 3 ? 'magnet' : 'rainbow' };
+  }
+  return { t: pickTier(rnd) };
 }

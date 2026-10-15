@@ -23,6 +23,7 @@
   </div>
   <div class="btns">
     <button id="mode" type="button" aria-label="Switch game mode">Classic</button>
+    <button id="help" type="button" aria-label="How to play" title="How to play">?</button>
     <button id="snd" type="button" aria-label="Turn sound on" aria-pressed="false">
       <svg class="ico on" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M11 5 6.5 9H3v6h3.5L11 19z"/>
@@ -60,6 +61,25 @@
 </div>
 
 <div id="ladder"></div>
+
+<div id="helpPanel" hidden>
+  <div class="sheet">
+    <h2>How to play</h2>
+    <ul>
+      <li>Drag to slide the slime along the line, then let go to shove it up the board.</li>
+      <li>Two slimes of the <strong>same size</strong> merge into the next size up.</li>
+      <li>Each extra merge from a single shove pays more: 2nd <strong>×2</strong>, 3rd <strong>×3</strong>. Keep every shove merging to build a <strong>streak</strong> bonus.</li>
+      <li>It ends when slimes settle past the <strong>overflow line</strong>.</li>
+    </ul>
+    <h3>Powers <small>about 1 shove in 30</small></h3>
+    <div id="powerList"></div>
+    <h3>Modes</h3>
+    <p class="modes"><strong>Classic</strong> is a long board; <strong>Rush</strong> is shorter and faster.
+    Each keeps its own best score.</p>
+    <button id="helpClose" type="button">Got it</button>
+  </div>
+</div>
+
 
 <script type="module" src="/src/main.ts"></script>
 </body>

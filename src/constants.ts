@@ -19,7 +19,13 @@ export let LINE_Y = H - LINE_OFFSET; // the overflow line
 export const MAX_V = 950; // launch speed, straight up
 export const FRICTION = 0.95; // exponential damping per second
 export const LINEAR_DECEL = 14; // units/s², stops slimes cleanly
-export const REST = 0.5; // restitution, walls and slime-slime
+export const REST = 0.5; // restitution, side/near walls and slime-slime
+// The far wall takes every shot at full speed, so it is the one bounce the
+// player feels most. At REST (0.5) a shot rebounds 169 units — close to a
+// third of the table — which playtested as too bouncy. At 0.25 it comes back
+// 73 units and settles near the back. Game length is barely affected either
+// way; this is a feel number.
+export const TOP_REST = 0.25;
 export const SNAP_SPEED = 2; // below this, velocity snaps to zero
 
 export const COOLDOWN = 0.45; // seconds between shots
@@ -33,13 +39,27 @@ export const MAX_FRAME_DT = 0.05;
 
 export const BUMP_SPEED = 120; // impact speed that earns a thud
 
-// Combo multiplier (DESIGN.md §10 priority 1)
-export const COMBO_WINDOW = 1.0; // seconds within which merges keep chaining
-// Uncapped in practice: the highest combo measured in a strong run is ~41, so
-// this is headroom rather than a ceiling anyone should meet. A low cap (the
-// original 9) is reached in 39 of 40 runs even by random play, which makes the
-// multiplier carry no information about how well you are playing.
-export const COMBO_MAX = 50;
+// --- Scoring multipliers (DESIGN.md §5a) ---
+// Chain: the nth merge of a single shove pays xn. A long cascade is where the
+// big scores come from, and it is earned by placement, not by shoving fast.
+export const CHAIN_MAX = 20;
+// Streak: a steadier bonus for keeping every shove productive.
+export const STREAK_STEP = 0.25;
+export const STREAK_MAX_MULT = 3;
+
+// --- Power slimes (DESIGN.md §3a) ---
+// Share of spawns that arrive as a power rather than a tier slime, split
+// evenly between the three kinds.
+export const POWER_CHANCE = 0.03;
+export const POWER_R = 20; // every power slime is this size
+export const BOMB_RADIUS = 86; // slimes inside this are destroyed
+export const MAGNET_RADIUS = 150;
+export const MAGNET_PULL = 1400; // acceleration toward the magnet
+export const MAGNET_TIME = 1.1; // seconds it pulls before vanishing
+export const MAGNET_LAND_SPEED = 70; // it starts pulling once this slow
+
+// How far past a blast's physical reach slimes still pull a surprised face.
+export const REACT_REACH = 1.5;
 
 // How far above the overflow line the pile starts showing as a threat. The
 // danger timer only fires in the last few percent of a run, so this is what
