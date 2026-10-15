@@ -26,8 +26,11 @@ export function setBest(n: number): void {
 }
 
 export function setSoundLabel(on: boolean): void {
-  sndEl.textContent = on ? 'Sound on' : 'Sound off';
+  // Icon-only button: CSS picks the speaker glyph off aria-pressed, so the
+  // state only has to be set once, and the label carries it for screen readers.
   sndEl.setAttribute('aria-pressed', String(on));
+  sndEl.setAttribute('aria-label', on ? 'Turn sound off' : 'Turn sound on');
+  sndEl.title = on ? 'Sound on' : 'Sound off';
 }
 
 /** Tiers reached so far light up; the highest sits slightly enlarged. */

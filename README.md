@@ -30,6 +30,19 @@ npm run dev        # play at http://localhost:5173
 The service worker only runs in a built app, so test install and offline behaviour
 against `npm run preview`, not `npm run dev`.
 
+## Game modes
+
+Two modes, switched with the pill in the header. **The only difference is the
+height of the board** — same physics, same scoring:
+
+- **Classic** — a long table, roughly 3-4 minutes a run.
+- **Rush** — a short table, roughly 2-3 minutes, with the overflow line arriving
+  much sooner.
+
+Each keeps its own best score. The choice is remembered and mirrored into
+`?mode=`, so a link shares the mode it was played in. Modes live in
+`src/tuning.ts`; DESIGN.md §9a has the measurements behind them.
+
 ## Layout
 
 ```

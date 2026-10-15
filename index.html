@@ -22,8 +22,23 @@
     <div class="stat"><span>Best</span><b id="best">0</b></div>
   </div>
   <div class="btns">
-    <button id="snd" type="button" aria-label="Toggle sound" aria-pressed="false">Sound off</button>
-    <button id="rst" type="button" aria-label="Restart">New</button>
+    <button id="mode" type="button" aria-label="Switch game mode">Classic</button>
+    <button id="snd" type="button" aria-label="Turn sound on" aria-pressed="false">
+      <svg class="ico on" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M11 5 6.5 9H3v6h3.5L11 19z"/>
+        <path class="st" d="M14.6 9.6a3.4 3.4 0 0 1 0 4.8M17.2 7a7 7 0 0 1 0 10"/>
+      </svg>
+      <svg class="ico off" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M11 5 6.5 9H3v6h3.5L11 19z"/>
+        <path class="st" d="M15 9.5l5 5m0-5l-5 5"/>
+      </svg>
+    </button>
+    <button id="rst" type="button" aria-label="New game" title="New game">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true">
+        <path class="st" d="M5.4 9.6A7 7 0 1 0 12 5"/>
+        <path d="M12.6 1.9 7.6 5.1 12.7 8.3z"/>
+      </svg>
+    </button>
   </div>
 </header>
 

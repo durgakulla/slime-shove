@@ -97,10 +97,13 @@ Chain reactions come naturally from blasts and from new slimes touching same-tie
 
 Merges that land close together multiply each other, which is what rewards setting up a chain rather than merging one pair at a time.
 
-- Each merge checks a countdown. If it is still running, the combo steps up by one (capped at **9**); otherwise the combo resets to **1**. Either way the countdown is set back to **1.0 s**.
+- Each merge checks a countdown. If it is still running, the combo steps up by one (capped per profile — **9** in Classic, effectively uncapped in Rush); otherwise the combo resets to **1**. Either way the countdown is set back to **1.0 s**.
 - Points awarded = tier points (or the King Goo 250) **× the combo**.
 - A floating `+N` rises at the merge point, and from ×2 up a green `COMBO ×N` rises above it. Both are clamped away from the walls so they stay readable.
 - A four-merge chain of mid tiers is worth about 210 points, against 68 unmultiplied.
+- A live `×N` chip sits in the launch zone opposite the NEXT preview, with a bar draining over the window.
+
+Measured over 40 simulated games: under Classic's ×9 cap the combo maxes out in 39/40 runs even for random play, carrying no information. Uncapped it separates — skilled play reaches a median ×21 (max 40) against random play's ×15.
 
 ---
 
@@ -111,6 +114,7 @@ Merges that land close together multiply each other, which is what rewards setti
 - Each body accumulates danger time while in danger and decays it at 2× speed when not.
 - When any body reaches **2.2 s** of danger → game over.
 - Warnings: the slime flashes red and its mouth flips to a worried frown; the overflow line pulses brighter.
+- **Pressure glow**: an amber haze swells up from the line as the pile creeps toward it, over a `WARN_RANGE` of 160 units. The danger timer above only runs in the last few percent of a game — measured at 4% of shoves — so without this the loss arrives with no warning. The glow is what makes the threat legible while there is still time to react.
 - Game over overlay: "The tub overflowed", final score, biggest slime reached, and a "Shove again" button.
 
 ---
@@ -139,7 +143,9 @@ HUD:
 
 - Header: "Slime Shove" title, Score, Best (persisted in `localStorage` key `slimeShoveBest`), a Sound toggle (off by default), and a New game button.
 - Bottom **tier ladder**: all 9 tiers as colored dots sized by radius with names; tiers reached so far light up, and the highest one is slightly enlarged.
-- In-canvas: a "NEXT" preview box at the bottom-left, a faint rail along the launch line, and a dotted lane guide above the waiting slime (brighter while dragging). The hint "Drag to aim, let go to shove" shows until the first merge.
+- In-canvas: a "NEXT" preview chip tucked just under the overflow line, a faint rail along the launch line, and a dotted lane guide above the waiting slime (brighter while dragging). The hint "Drag to aim, let go to shove" shows until the first merge, and is replaced by a "N from your best!" nudge once the score is within 80% of the stored best, then a gold "NEW BEST!" on passing it.
+  - The NEXT chip sits above the waiting slime's reach on purpose. It used to share the launch row, where the rail cut through it and the slime could be dragged underneath it.
+- Big merges (tier 5+) shake the screen, scaled by tier, and particle counts scale with the combo. All of it is skipped under `prefers-reduced-motion`.
 - The first load seeds 6 sample slimes on the table so the screen isn't empty; New game starts with an empty table.
 
 ---
@@ -158,7 +164,7 @@ All synthesized with WebAudio oscillators (no files). The audio context starts o
 ## 9. Tuning constants (current values)
 
 ```
-W = 360, H = 620
+W = 360, H = 620 (Classic) / 520 (Rush)
 LAUNCH_Y = H - 46, LINE_Y = H - 108
 MAX_V = 950            // launch speed, straight up
 FRICTION = 0.95        // exponential damping per second
@@ -170,10 +176,39 @@ ARM_AGE = 1.3 s
 BLAST_RADIUS = r*2.4 + 30, BLAST_POWER = 230 + tier*22
 FIXED_DT = 1/120
 COMBO_WINDOW = 1.0 s    // merges inside this keep chaining
-COMBO_MAX = 9           // multiplier cap
+COMBO_MAX = 9 / 50      // multiplier cap, per profile
+WARN_RANGE = 160        // how far above the line pressure starts showing
 ```
 
-These live in `src/constants.ts`.
+These live in `src/constants.ts`. `H` and the two lines derived from it are set
+once at boot by `applyProfile()`, so they are `let` rather than `const`.
+
+### 9a. Game modes
+
+`src/tuning.ts` defines two modes. **The only difference is the height of the
+board** — identical physics, scoring and rules — which decides how long the pile
+takes to reach the overflow line.
+
+| | Classic | Rush |
+|---|---|---|
+| `H` | 620 | 520 |
+| median run | 211 shoves, ~3.7 min | 143 shoves, ~2.5 min |
+| median score | ~16,600 | ~9,300 |
+| King Goo reached | 18/40 runs | 7/40 runs |
+| best-score key | `slimeShoveBest` | `slimeShoveBest:rush` |
+
+Each mode keeps its own best score, so the two are never compared. The chosen
+mode is remembered in `slimeShoveMode` and mirrored into `?mode=`, so a refresh
+or a shared link lands in the same place. Switching starts a fresh game, since
+the board changes size.
+
+**Why the board is shorter rather than the slimes bigger.** Simulation showed
+the opposite of the obvious fix: scaling every radius by 1.5 made runs *longer*
+(207 → 308 shoves), because a bigger radius is a bigger collision cross-section,
+so same-tier slimes find each other sooner and the table clears faster. Weaker
+blasts backfire the same way (235 → 338 shoves) — blasts separate same-tier
+slimes, so they are already a difficulty mechanic. Anything that makes merging
+easier lengthens the game. Board size is the lever that actually works.
 
 ---
 
@@ -213,7 +248,7 @@ Vite + TypeScript, no framework, Canvas 2D. Modules in `src/`:
 **Gameplay ideas to try (in rough priority)**
 
 1. ~~Chain combo multiplier~~ — shipped, see §5a.
-2. Haptics on merge (`navigator.vibrate`) where supported.
+2. Haptics on merge (`navigator.vibrate`) where supported. Deliberately not shipped.
 3. Daily challenge using a seeded spawn sequence, with a shareable result. `rng.ts` and `State.seed` are already in place for this.
 4. Special slimes: sticky (stops dead, glues neighbors), heavy (plows through), bouncy (high restitution), and rainbow (merges with any tier).
 5. Table surfaces with different friction (ice / normal / goo).

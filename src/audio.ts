@@ -63,9 +63,18 @@ export const sfx = {
     const f = 620 - t * 48;
     tone(f * 0.6, f * 1.5, 0.12, 0.22);
     setTimeout(() => tone(f * 1.2, f * 0.7, 0.16, 0.16, 'triangle'), 60);
+    // Heavy tiers get a low body under the chime so they land with weight.
+    if (t >= 5) tone(150 - t * 6, 60, 0.26, 0.2, 'sine');
   },
   king(): void {
     sfx.merge(MAXT);
+    setTimeout(() => tone(90, 50, 0.5, 0.26, 'sawtooth'), 40);
+  },
+  /** A short rising three-note flourish for passing your best. */
+  newBest(): void {
+    [0, 90, 180].forEach((d, i) => {
+      setTimeout(() => tone(520 + i * 180, 700 + i * 220, 0.16, 0.17, 'triangle'), d);
+    });
   },
   /** Throttled to one thud per 70 ms so pile-ups don't machine-gun. */
   bump(v: number): void {

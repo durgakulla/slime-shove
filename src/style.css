@@ -27,14 +27,17 @@ body{
   -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
   -webkit-touch-callout:none;
 }
-header{display:flex;align-items:center;gap:12px;max-width:520px;width:100%;margin-inline:auto}
+/* Wraps rather than overflowing: a six-figure score plus the mode toggle will
+   not fit beside the title on a narrow phone, and clipping the New button is
+   worse than taking a second row. */
+header{display:flex;align-items:center;gap:12px;max-width:520px;width:100%;margin-inline:auto;flex-wrap:wrap}
 h1{font-family:var(--f-display);font-weight:400;font-size:1.65rem;line-height:1;margin:0;color:var(--goo);letter-spacing:.01em;text-shadow:0 3px 0 #2f8f61}
 .stats{display:flex;gap:14px;margin-left:auto;align-items:flex-end}
 .stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
 .stat span{font-size:.66rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
-.stat b{font-size:1.3rem;font-weight:600;font-variant-numeric:tabular-nums}
-.btns{display:flex;gap:6px}
-button{font-family:var(--f-body);font-weight:600;color:var(--ink);background:var(--panel);border:2px solid var(--rail);border-radius:12px;padding:6px 10px;font-size:.85rem;cursor:pointer}
+.stat b{font-size:clamp(1rem,4.2vw,1.3rem);font-weight:600;font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:6px;margin-left:auto}
+button{font-family:var(--f-body);font-weight:600;color:var(--ink);background:var(--panel);border:2px solid var(--rail);border-radius:12px;padding:6px 10px;font-size:.85rem;cursor:pointer;white-space:nowrap}
 button:hover{border-color:var(--goo)}
 button:focus-visible{outline:3px solid var(--goo);outline-offset:2px}
 #stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
@@ -60,3 +63,32 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 .rung.on small{color:var(--ink)}
 @media (max-width:380px){.rung small{display:none} h1{font-size:1.35rem}}
 @media (prefers-reduced-motion:reduce){.dot{transition:none}}
+/* Game-mode toggle: shows the mode you are in, tap to switch */
+#mode{font-size:.78rem;padding:6px 9px;border-radius:999px;border-color:var(--goo);
+  color:var(--goo);background:rgba(125,255,179,.1)}
+#mode:hover{background:rgba(125,255,179,.2)}
+/* Sound is icon-only so the mode toggle fits the header on a narrow phone.
+   Both states use the same SVG box, so toggling never shifts the layout. */
+#snd{padding:5px;line-height:0;color:var(--muted)}
+#snd[aria-pressed="true"]{color:var(--goo);border-color:var(--goo)}
+#snd .ico,#rst .ico{display:block;width:20px;height:20px;fill:currentColor}
+#snd .ico .st,#rst .ico .st{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+/* Restart: icon-only, same square footprint as the sound toggle */
+#rst{padding:5px;line-height:0;color:var(--ink)}
+#snd .on{display:none}
+#snd[aria-pressed="true"] .on{display:block}
+#snd[aria-pressed="true"] .off{display:none}
+/* Narrow phones (320px): the mode toggle costs width, and the score grows with
+   its digit count, so tighten everything that scales. */
+@media (max-width:360px){
+  header{gap:7px}
+  h1{font-size:1.12rem}
+  .stats{gap:8px}
+  .stat span{font-size:.56rem;letter-spacing:.07em}
+  .stat b{font-size:1.02rem}
+  .btns{gap:4px}
+  button{padding:5px 7px;font-size:.76rem}
+  #mode{font-size:.67rem;padding:5px 7px}
+  #snd,#rst{padding:4px}
+  #snd .ico,#rst .ico{width:18px;height:18px}
+}

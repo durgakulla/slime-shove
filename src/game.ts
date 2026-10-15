@@ -3,6 +3,7 @@
 
 import { ensureAudio, sfx } from './audio';
 import {
+  applyProfile,
   BUMP_SPEED,
   COMBO_WINDOW,
   COOLDOWN,
@@ -14,6 +15,7 @@ import {
   MAX_SUBSTEPS,
   MAX_V,
   W,
+  WARN_RANGE,
 } from './constants';
 import { nextCombo } from './combo';
 import { hideGameOver, renderLadder, setBest, setScore, showGameOver } from './hud';
@@ -22,9 +24,9 @@ import { maybeOfferInstall } from './install';
 import { pickTier, step } from './physics';
 import { KING_POINTS, MAXT, POINTS, TIERS, body, drawSlime } from './slimes';
 import { makeRng, randomSeed, type Rng } from './rng';
+import { DEFAULT_PROFILE, type Profile } from './tuning';
 import type { GameEvent, State } from './types';
 
-const BEST_KEY = 'slimeShoveBest';
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 interface Particle {
@@ -36,12 +38,13 @@ interface Particle {
   r: number;
   c: string;
 }
+type TextStyle = 'score' | 'combo' | 'best';
 interface FloatText {
   x: number;
   y: number;
   txt: string;
   life: number;
-  combo: boolean;
+  style: TextStyle;
 }
 interface Ring {
   x: number;
@@ -62,19 +65,34 @@ let texts: FloatText[] = [];
 let rings: Ring[] = [];
 let time = 0;
 let lineHot = 0;
-let best = loadBest();
+let pressure = 0;
+/** Screen shake magnitude in world units; decays every frame. */
+let shake = 0;
+/** Counts down after each combo step so the meter can pop. */
+let comboPop = 0;
+/** True once this run has passed the stored best, so it only celebrates once. */
+let beatBest = false;
+/**
+ * The best as it stood when this run began. `best` climbs with the live score,
+ * so comparing against it would fire the celebration on your own second merge.
+ */
+let runStartBest = 0;
+// Set in start(), once the profile is known. Reading the best score at module
+// scope would bind it to the wrong profile's key.
+let profile: Profile = DEFAULT_PROFILE;
+let best = 0;
 
 // ---------- persistence ----------
 function loadBest(): number {
   try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
+    return Number(localStorage.getItem(profile.bestKey)) || 0;
   } catch {
     return 0;
   }
 }
 function saveBest(n: number): void {
   try {
-    localStorage.setItem(BEST_KEY, String(n));
+    localStorage.setItem(profile.bestKey, String(n));
   } catch {
     /* private mode — the score just won't persist */
   }
@@ -121,11 +139,20 @@ function freshState(demo: boolean, seed = randomSeed()): State {
 function bumpCombo(): void {
   S.combo = nextCombo(S.combo, S.comboTimer);
   S.comboTimer = COMBO_WINDOW;
+  if (S.combo >= 2) comboPop = 1;
 }
 
 function addScore(p: number, x: number, y: number): void {
+  const before = S.score;
   S.score += p;
   setScore(S.score);
+  // Celebrate passing the best this run started with, exactly once.
+  if (runStartBest > 0 && before <= runStartBest && S.score > runStartBest && !beatBest) {
+    beatBest = true;
+    texts.push({ x: W / 2, y: LINE_Y - 40, txt: 'NEW BEST!', life: 1.8, style: 'best' });
+    sfx.newBest();
+    if (!reduced) shake = Math.max(shake, 5);
+  }
   if (S.score > best) {
     best = S.score;
     setBest(best);
@@ -133,9 +160,9 @@ function addScore(p: number, x: number, y: number): void {
   }
   // Floating text is centred, so keep it clear of the walls or it clips.
   const clamp = (v: number, pad: number) => Math.max(pad, Math.min(W - pad, v));
-  texts.push({ x: clamp(x, 18), y, txt: '+' + p, life: 1, combo: false });
+  texts.push({ x: clamp(x, 18), y, txt: '+' + p, life: 1, style: 'score' });
   if (S.combo >= 2) {
-    texts.push({ x: clamp(x, 52), y: y - 22, txt: `COMBO ×${S.combo}`, life: 1.2, combo: true });
+    texts.push({ x: clamp(x, 52), y: y - 22, txt: `COMBO ×${S.combo}`, life: 1.2, style: 'combo' });
   }
 }
 
@@ -167,18 +194,30 @@ function applyEvents(ev: GameEvent[]): void {
       case 'ring':
         rings.push({ x: e.x, y: e.y, R: e.R, life: 1 });
         break;
-      case 'merge':
+      case 'merge': {
         bumpCombo();
         addScore(POINTS[e.tier] * S.combo, e.x, e.y);
-        splat(e.x, e.y, TIERS[e.fromTier].c, 10 + e.fromTier * 2, 120 + e.fromTier * 12);
+        // A long chain throws more goo, so a big combo visibly reads as bigger.
+        const boost = 1 + Math.min(S.combo, 8) * 0.18;
+        splat(
+          e.x,
+          e.y,
+          TIERS[e.fromTier].c,
+          Math.round((10 + e.fromTier * 2) * boost),
+          120 + e.fromTier * 12,
+        );
         sfx.merge(e.tier);
+        // Only the heavy tiers shake the table, or it would never sit still.
+        if (!reduced && e.tier >= 5) shake = Math.min(9, shake + (e.tier - 4) * 1.4);
         tierChanged = true;
         break;
+      }
       case 'king':
         bumpCombo();
         addScore(KING_POINTS * S.combo, e.x, e.y);
         splat(e.x, e.y, TIERS[MAXT].c, 40, 260);
         sfx.king();
+        if (!reduced) shake = 11;
         break;
     }
   }
@@ -215,7 +254,9 @@ function drawTable(): void {
   g.addColorStop(0, '#2b1f52');
   g.addColorStop(1, '#1f1640');
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+  // Overfill: screen shake translates the world, and an exact W×H fill would
+  // leave a sliver of stale pixels along the trailing edges.
+  ctx.fillRect(-14, -14, W + 28, H + 28);
 
   // lane boards
   ctx.strokeStyle = 'rgba(255,255,255,.04)';
@@ -237,6 +278,18 @@ function drawTable(): void {
   // launch zone
   ctx.fillStyle = 'rgba(10,4,26,.35)';
   ctx.fillRect(0, LINE_Y, W, H - LINE_Y);
+
+  // Pressure glow: an amber haze that swells up from the line as the pile
+  // creeps toward it. The danger timer only fires in the last moments of a
+  // run, so this is what makes the threat legible while there is still time.
+  if (pressure > 0.02) {
+    const band = WARN_RANGE * pressure;
+    const gl = ctx.createLinearGradient(0, LINE_Y - band, 0, LINE_Y);
+    gl.addColorStop(0, 'rgba(255,145,80,0)');
+    gl.addColorStop(1, `rgba(255,145,80,${(0.1 + 0.26 * pressure).toFixed(3)})`);
+    ctx.fillStyle = gl;
+    ctx.fillRect(0, LINE_Y - band, W, band);
+  }
 
   // overflow line — pulses brighter as something nears the limit
   const hot = Math.min(1, lineHot);
@@ -279,7 +332,49 @@ function drawAim(): void {
   }
 }
 
+/**
+ * Live combo readout, mirroring the NEXT chip on the opposite side. It sits in
+ * the launch zone where no slime can cover it, and the bar drains with the
+ * window so you can see how long you have to land the next merge.
+ */
+function drawComboMeter(): void {
+  if (S.combo < 2 || S.comboTimer <= 0) return;
+  const w = 60,
+    h = 26,
+    x = W - w - 8,
+    y = LINE_Y + 2;
+  const pop = 1 + comboPop * 0.12;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.scale(pop, pop);
+  ctx.translate(-w / 2, -h / 2);
+
+  ctx.fillStyle = 'rgba(125,255,179,.14)';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, w, h, 8);
+  ctx.fill();
+
+  ctx.fillStyle = '#7dffb3';
+  ctx.font = '400 15px "Bagel Fat One", Fredoka, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`×${S.combo}`, w / 2, h / 2 + 2);
+  ctx.textAlign = 'left';
+
+  // draining window bar
+  const frac = Math.max(0, Math.min(1, S.comboTimer / COMBO_WINDOW));
+  ctx.fillStyle = 'rgba(125,255,179,.75)';
+  ctx.beginPath();
+  ctx.roundRect(7, h - 6, (w - 14) * frac, 3, 1.5);
+  ctx.fill();
+  ctx.restore();
+}
+
 function draw(): void {
+  // Screen shake: shift the whole world, then put it back at the end.
+  ctx.save();
+  if (shake > 0.1) {
+    ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  }
   drawTable();
   drawAim();
 
@@ -288,6 +383,23 @@ function draw(): void {
   for (const b of sorted) drawSlime(ctx, time, b.t, b.x, b.y, b);
 
   if (!S.over) {
+    // "NEXT" preview, tucked into the top of the launch zone. The waiting slime
+    // can be dragged the full width of the table, so anything sharing its row
+    // gets covered; this band sits just below the overflow line and above the
+    // largest spawnable slime's reach (LAUNCH_Y - 27), so it always stays clear.
+    const ny = LINE_Y + 2;
+    ctx.fillStyle = 'rgba(255,255,255,.08)';
+    ctx.beginPath();
+    ctx.roundRect(8, ny, 60, 26, 8);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(183,165,216,.9)';
+    ctx.font = '600 8px Fredoka, system-ui, sans-serif';
+    ctx.fillText('NEXT', 13, ny + 17);
+    drawSlime(ctx, time, S.next, 52, ny + 13, {
+      scale: Math.min(1, 9 / TIERS[S.next].r),
+      seed: 2,
+    });
+
     if (S.cool <= 0) {
       drawSlime(ctx, time, S.pending, S.launchX, LAUNCH_Y, {
         seed: 1,
@@ -297,24 +409,22 @@ function draw(): void {
         blink: time % 4 < 0.12 ? 1 : 0,
       });
     }
-    // "NEXT" preview
-    ctx.fillStyle = 'rgba(255,255,255,.08)';
-    ctx.beginPath();
-    ctx.roundRect(8, H - 50, 54, 42, 10);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(183,165,216,.9)';
-    ctx.font = '600 8px Fredoka, system-ui, sans-serif';
-    ctx.fillText('NEXT', 14, H - 39);
-    drawSlime(ctx, time, S.next, 44, H - 24, {
-      scale: Math.min(1, 13 / TIERS[S.next].r),
-      seed: 2,
-    });
+
+    drawComboMeter();
 
     if (!input.isAiming() && S.bodies.length < 9 && S.score === 0) {
       ctx.fillStyle = 'rgba(246,238,255,.7)';
       ctx.font = '500 12px Fredoka, system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Drag to aim, let go to shove', W / 2, LAUNCH_Y + 38);
+      ctx.textAlign = 'left';
+    } else if (!beatBest && runStartBest > 0 && S.score >= runStartBest * 0.8) {
+      // Only nudge once you are genuinely in range, so it stays meaningful.
+      const away = runStartBest - S.score + 1;
+      ctx.fillStyle = `rgba(255,216,74,${(0.78 + 0.22 * Math.sin(time * 5)).toFixed(3)})`;
+      ctx.font = '600 12px Fredoka, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${away} from your best!`, W / 2, LAUNCH_Y + 38);
       ctx.textAlign = 'left';
     }
   }
@@ -340,23 +450,17 @@ function draw(): void {
   ctx.textAlign = 'center';
   for (const t of texts) {
     ctx.globalAlpha = Math.min(1, t.life * 1.5);
-    if (t.combo) {
-      ctx.font = '400 14px "Bagel Fat One", Fredoka, sans-serif';
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#1a1030';
-      ctx.strokeText(t.txt, t.x, t.y);
-      ctx.fillStyle = '#7dffb3';
-    } else {
-      ctx.font = '400 18px "Bagel Fat One", Fredoka, sans-serif';
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#1a1030';
-      ctx.strokeText(t.txt, t.x, t.y);
-      ctx.fillStyle = '#fff';
-    }
+    const big = t.style === 'best';
+    ctx.font = `400 ${big ? 26 : t.style === 'combo' ? 14 : 18}px "Bagel Fat One", Fredoka, sans-serif`;
+    ctx.lineWidth = big ? 6 : 4;
+    ctx.strokeStyle = '#1a1030';
+    ctx.strokeText(t.txt, t.x, t.y);
+    ctx.fillStyle = big ? '#ffd84a' : t.style === 'combo' ? '#7dffb3' : '#fff';
     ctx.fillText(t.txt, t.x, t.y);
   }
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';
+  ctx.restore();
 }
 
 // ---------- loop ----------
@@ -376,6 +480,7 @@ function frame(now: number): void {
       const res = step(S, FIXED_DT, ev);
       applyEvents(ev);
       lineHot = res.lineHot;
+      pressure = res.pressure;
       acc -= FIXED_DT;
       n++;
       if (res.over) {
@@ -390,6 +495,8 @@ function frame(now: number): void {
     S.comboTimer -= dt;
     if (S.comboTimer <= 0) S.combo = 0;
   }
+  shake *= Math.exp(-9 * dt);
+  comboPop = Math.max(0, comboPop - dt * 5);
 
   for (const b of S.bodies) {
     b.wob *= Math.exp(-3.5 * dt);
@@ -446,13 +553,39 @@ export function restart(): void {
   texts = [];
   rings = [];
   lineHot = 0;
+  pressure = 0;
+  shake = 0;
+  comboPop = 0;
+  beatBest = false;
+  runStartBest = best;
   acc = 0;
   setScore(0);
   hideGameOver();
   renderLadder(S.maxTier);
 }
 
-export function start(canvas: HTMLCanvasElement, stageEl: HTMLElement): void {
+/**
+ * Switch game mode. Board height is all that changes, so the live bindings in
+ * constants.ts are enough — no reload needed — but the best score belongs to
+ * the new mode's own key and the board has to be re-measured.
+ */
+export function setProfile(p: Profile): void {
+  profile = p;
+  applyProfile(p);
+  best = loadBest();
+  setBest(best);
+  restart();
+  fit();
+}
+
+export function currentProfile(): Profile {
+  return profile;
+}
+
+export function start(canvas: HTMLCanvasElement, stageEl: HTMLElement, p: Profile): void {
+  profile = p;
+  best = loadBest();
+  runStartBest = best;
   cv = canvas;
   stage = stageEl;
   const c = canvas.getContext('2d');

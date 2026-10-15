@@ -15,6 +15,7 @@ import {
   REST,
   SNAP_SPEED,
   W,
+  WARN_RANGE,
 } from './constants';
 import { MAXT, body } from './slimes';
 import type { GameEvent, Slime, State } from './types';
@@ -22,6 +23,12 @@ import type { GameEvent, Slime, State } from './types';
 export interface StepResult {
   /** 0..1 — how close the worst slime is to overflowing, for the line pulse. */
   lineHot: number;
+  /**
+   * 0..1 — how far the pile has crept toward the line, measured over
+   * WARN_RANGE above it. Unlike lineHot this rises steadily through a run,
+   * so the threat is visible long before the danger timer starts.
+   */
+  pressure: number;
   over: boolean;
 }
 
@@ -186,6 +193,7 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
 
   // --- overflow / lose condition ---
   let hot = 0;
+  let press = 0;
   for (const b of S.bodies) {
     if (!b.armed && (b.y < LINE_Y - b.r || b.age > ARM_AGE)) b.armed = true;
     const sp = Math.hypot(b.vx, b.vy);
@@ -195,9 +203,17 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
       b.danger = Math.max(0, b.danger - dt * 2);
     }
     hot = Math.max(hot, b.danger / DANGER_TIME);
-    if (b.danger > DANGER_TIME) return { lineHot: hot, over: true };
+    // How far this slime's leading edge has encroached on the warning band.
+    // Only settled slimes count, or a shot in flight would spike it to 1.
+    if (sp < DANGER_SPEED) {
+      const edge = b.y + b.r * 0.4;
+      press = Math.max(press, (edge - (LINE_Y - WARN_RANGE)) / WARN_RANGE);
+    }
+    if (b.danger > DANGER_TIME) {
+      return { lineHot: hot, pressure: 1, over: true };
+    }
   }
-  return { lineHot: hot, over: false };
+  return { lineHot: hot, pressure: Math.max(0, Math.min(1, press)), over: false };
 }
 
 /** Tier for a newly spawned slime: 40% / 30% / 20% / 10% across tiers 0–3. */
