@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- user-scalable=no: a drag-driven game cannot afford double-tap zoom mid-shove -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Slime Shove</title>
+<meta name="description" content="A casual one-finger merge game. Slide a slime, let go, and shove it up the table. Same sizes merge.">
+<meta name="theme-color" content="#1a1030">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Slime Shove">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" href="/icons/favicon.png" sizes="any">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+</head>
+<body>
+<header>
+  <h1>Slime<br>Shove</h1>
+  <div class="stats">
+    <div class="stat"><span>Score</span><b id="score">0</b></div>
+    <div class="stat"><span>Best</span><b id="best">0</b></div>
+  </div>
+  <div class="btns">
+    <button id="snd" type="button" aria-label="Toggle sound" aria-pressed="false">Sound off</button>
+    <button id="rst" type="button" aria-label="Restart">New</button>
+  </div>
+</header>
+
+<div id="stage">
+  <div id="wrap">
+    <canvas id="c" aria-label="Slime table. Drag left or right to position the slime, release to shove it straight forward."></canvas>
+    <div id="over" hidden>
+      <h2>The tub overflowed</h2>
+      <p>Final score</p>
+      <div class="big" id="final">0</div>
+      <p id="biggest"></p>
+      <button id="again" type="button">Shove again</button>
+      <div id="install" hidden>
+        <button id="installBtn" type="button" hidden>Add to home screen</button>
+        <p id="installHint" hidden>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong> to play offline.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="ladder"></div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

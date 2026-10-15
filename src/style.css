@@ -1,0 +1,62 @@
+/* Layout: one-screen app — compact header, the slime table fills the middle,
+   tier ladder at the foot. Single committed "goo lab" dark look (DESIGN.md §7). */
+:root{
+  --bg:#1a1030;
+  --panel:#271944;
+  --ink:#f6eeff;
+  --muted:#b7a5d8;
+  --goo:#7dffb3;
+  --hot:#ff5d73;
+  --rail:#3b2763;
+  --f-display:"Bagel Fat One","Fredoka",system-ui,sans-serif;
+  --f-body:"Fredoka",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+/* Kill pull-to-refresh and rubber-banding so a drag never scrolls the page. */
+html,body{overscroll-behavior:none}
+body{
+  margin:0;
+  background:var(--bg);color:var(--ink);font-family:var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:max(10px,env(safe-area-inset-top,0px));
+  padding-bottom:max(10px,env(safe-area-inset-bottom,0px));
+  box-sizing:border-box;
+  display:flex;flex-direction:column;gap:10px;overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;
+}
+header{display:flex;align-items:center;gap:12px;max-width:520px;width:100%;margin-inline:auto}
+h1{font-family:var(--f-display);font-weight:400;font-size:1.65rem;line-height:1;margin:0;color:var(--goo);letter-spacing:.01em;text-shadow:0 3px 0 #2f8f61}
+.stats{display:flex;gap:14px;margin-left:auto;align-items:flex-end}
+.stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
+.stat span{font-size:.66rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.stat b{font-size:1.3rem;font-weight:600;font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:6px}
+button{font-family:var(--f-body);font-weight:600;color:var(--ink);background:var(--panel);border:2px solid var(--rail);border-radius:12px;padding:6px 10px;font-size:.85rem;cursor:pointer}
+button:hover{border-color:var(--goo)}
+button:focus-visible{outline:3px solid var(--goo);outline-offset:2px}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+#wrap{position:relative;border-radius:22px;border:5px solid var(--rail);box-shadow:0 0 0 2px #0e0820,0 18px 40px rgba(0,0,0,.45);overflow:hidden;background:#251a43}
+canvas{display:block;touch-action:none;cursor:crosshair}
+#over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(20,10,40,.72);backdrop-filter:blur(3px);text-align:center;padding:20px}
+#over[hidden]{display:none}
+#over h2{font-family:var(--f-display);font-weight:400;font-size:2.1rem;margin:0;color:var(--hot);text-wrap:balance}
+#over p{margin:0;color:var(--muted);font-size:1rem}
+#over .big{font-size:2.6rem;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+#over #again{font-size:1.1rem;padding:10px 22px;background:var(--goo);color:#12301f;border-color:#2f8f61}
+/* Add-to-home-screen offer, revealed after the first game over */
+#install{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:4px}
+#install[hidden]{display:none}
+#installBtn{font-size:.9rem;background:var(--panel);border-color:var(--goo);color:var(--ink)}
+#installHint{font-size:.8rem;color:var(--muted);max-width:24ch;line-height:1.35}
+#ladder{display:flex;justify-content:space-between;align-items:center;gap:4px;max-width:520px;width:100%;margin-inline:auto;padding:6px 4px 0}
+.rung{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0}
+.dot{border-radius:50%;opacity:.28;transition:opacity .3s,transform .3s;box-shadow:inset -2px -3px 0 rgba(0,0,0,.25),inset 2px 2px 0 rgba(255,255,255,.35)}
+.rung.on .dot{opacity:1}
+.rung.top .dot{transform:scale(1.12)}
+.rung small{font-size:.56rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.rung.on small{color:var(--ink)}
+@media (max-width:380px){.rung small{display:none} h1{font-size:1.35rem}}
+@media (prefers-reduced-motion:reduce){.dot{transition:none}}
