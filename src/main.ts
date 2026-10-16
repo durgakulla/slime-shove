@@ -74,7 +74,9 @@ el('rst').addEventListener('click', () => restart());
 el('again').addEventListener('click', () => restart());
 el('snd').addEventListener('click', () => setSoundLabel(toggleSound()));
 
-new ResizeObserver(() => fit()).observe(stage);
+// The ladder and score share the stage, so their size changes refit the board too.
+const ro = new ResizeObserver(() => fit());
+for (const e of [stage, el('ladder'), document.querySelector('.stats')!]) ro.observe(e);
 
 showMode(profile, false);
 setSoundLabel(isSoundOn());

@@ -15,14 +15,11 @@
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 </head>
 <body>
+<div id="topcap" aria-hidden="true"></div>
 <header>
-  <h1>Slime<br>Shove</h1>
-  <div class="stats">
-    <div class="stat"><span>Score</span><b id="score">0</b></div>
-    <div class="stat"><span>Best</span><b id="best">0</b></div>
-  </div>
+  <h1>Slime Shove</h1>
+  <button id="mode" type="button" aria-label="Switch game mode">Classic</button>
   <div class="btns">
-    <button id="mode" type="button" aria-label="Switch game mode">Classic</button>
     <button id="help" type="button" aria-label="How to play" title="How to play">?</button>
     <button id="snd" type="button" aria-label="Turn sound on" aria-pressed="false">
       <svg class="ico on" viewBox="0 0 24 24" aria-hidden="true">
@@ -58,9 +55,12 @@
       </div>
     </div>
   </div>
+  <div id="ladder"></div>
+  <div class="stats">
+    <div class="stat"><span>Score</span><b id="score">0</b></div>
+    <div class="stat"><span>Best</span><b id="best">0</b></div>
+  </div>
 </div>
-
-<div id="ladder"></div>
 
 <div id="helpPanel" hidden>
   <div class="sheet">

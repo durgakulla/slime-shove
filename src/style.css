@@ -1,5 +1,5 @@
 /* Layout: one-screen app — compact header, the slime table fills the middle,
-   tier ladder at the foot. Single committed "goo lab" dark look (DESIGN.md §7). */
+   tier ladder and score at the foot. Single committed "goo lab" dark look (DESIGN.md §7). */
 :root{
   --bg:#1a1030;
   --panel:#271944;
@@ -13,6 +13,11 @@
   color-scheme:dark;
 }
 html,body{height:100%}
+/* iOS 27 frosts the top of an installed web app drawn under the status bar
+   (viewport-fit=cover + black-translucent). A solid fixed strip over the
+   safe-area inset keeps the blur off the header. Zero height elsewhere. */
+#topcap{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);
+  background:var(--bg);z-index:30;pointer-events:none}
 /* Kill pull-to-refresh and rubber-banding so a drag never scrolls the page. */
 html,body{overscroll-behavior:none}
 body{
@@ -27,21 +32,27 @@ body{
   -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
   -webkit-touch-callout:none;
 }
-/* Wraps rather than overflowing: a six-figure score plus the mode toggle will
-   not fit beside the title on a narrow phone, and clipping the New button is
-   worse than taking a second row. */
+/* Wraps rather than overflowing on very narrow screens: clipping the New
+   button is worse than taking a second row. */
 header{display:flex;align-items:center;gap:12px;max-width:520px;width:100%;margin-inline:auto;flex-wrap:wrap}
-h1{font-family:var(--f-display);font-weight:400;font-size:1.65rem;line-height:1;margin:0;color:var(--goo);letter-spacing:.01em;text-shadow:0 3px 0 #2f8f61}
-.stats{display:flex;gap:8px;margin-left:auto;align-items:stretch}
+/* One line, scaling with the viewport so it shares a row with the buttons on a phone. */
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(1.05rem,5.4vw,1.65rem);white-space:nowrap;line-height:1;margin:0;color:var(--goo);letter-spacing:.01em;text-shadow:0 3px 0 #2f8f61}
+/* Score sits under the board and ladder, centred, so the header holds only
+   the title and controls. */
+.stats{display:flex;gap:8px;justify-content:center;align-items:stretch;max-width:520px;width:100%;margin-inline:auto}
 .stat{display:flex;flex-direction:column;align-items:center;line-height:1.1;
-  background:var(--panel);border:2px solid var(--rail);border-radius:12px;padding:3px 10px 4px;min-width:62px}
+  background:var(--panel);border:2px solid var(--rail);border-radius:12px;padding:3px 10px 4px;min-width:88px}
 .stat span{font-size:.66rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
 .stat b{font-size:clamp(1rem,4.2vw,1.3rem);font-weight:600;font-variant-numeric:tabular-nums}
 .btns{display:flex;gap:6px;margin-left:auto}
 button{font-family:var(--f-body);font-weight:600;color:var(--ink);background:var(--panel);border:2px solid var(--rail);border-radius:12px;padding:6px 10px;font-size:.85rem;cursor:pointer;white-space:nowrap}
 button:hover{border-color:var(--goo)}
 button:focus-visible{outline:3px solid var(--goo);outline-offset:2px}
-#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+/* Board, ladder and score stack from the top of the stage, so any spare
+   height falls below them rather than between the header and the board.
+   fit() sizes the board to what the ladder and score leave over. */
+#stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;position:relative}
+#wrap{flex:none}
 #wrap{position:relative;border-radius:22px;border:5px solid var(--rail);box-shadow:0 0 0 2px #0e0820,0 18px 40px rgba(0,0,0,.45);overflow:hidden;background:#251a43}
 canvas{display:block;touch-action:none;cursor:crosshair}
 #over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(20,10,40,.72);backdrop-filter:blur(3px);text-align:center;padding:20px}
@@ -55,14 +66,14 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 #install[hidden]{display:none}
 #installBtn{font-size:.9rem;background:var(--panel);border-color:var(--goo);color:var(--ink)}
 #installHint{font-size:.8rem;color:var(--muted);max-width:24ch;line-height:1.35}
-#ladder{display:flex;justify-content:space-between;align-items:center;gap:4px;max-width:520px;width:100%;margin-inline:auto;padding:6px 4px 0}
+#ladder{display:flex;justify-content:space-between;align-items:center;gap:4px;max-width:520px;width:100%;margin-inline:auto;padding:0 4px;margin-top:-4px;box-sizing:border-box}
 .rung{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0}
 .dot{border-radius:50%;opacity:.28;transition:opacity .3s,transform .3s;box-shadow:inset -2px -3px 0 rgba(0,0,0,.25),inset 2px 2px 0 rgba(255,255,255,.35)}
 .rung.on .dot{opacity:1}
 .rung.top .dot{transform:scale(1.12)}
 .rung small{font-size:.56rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .rung.on small{color:var(--ink)}
-@media (max-width:380px){.rung small{display:none} h1{font-size:1.35rem}}
+@media (max-width:380px){.rung small{display:none}}
 @media (prefers-reduced-motion:reduce){.dot{transition:none}}
 /* Game-mode toggle: shows the mode you are in, tap to switch */
 #mode{font-size:.78rem;padding:6px 9px;border-radius:999px;border-color:var(--goo);
@@ -81,15 +92,9 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 #snd .on{display:none}
 #snd[aria-pressed="true"] .on{display:block}
 #snd[aria-pressed="true"] .off{display:none}
-/* On phones the controls always take their own row, so the header does not
-   flip between one and two rows as the score gains a digit. */
-@media (max-width:520px){
-  .btns{flex-basis:100%;justify-content:flex-end}
-}
 /* Very narrow phones: tighten what still scales. */
 @media (max-width:360px){
   header{gap:7px}
-  h1{font-size:1.12rem}
   .stats{gap:8px}
   .stat span{font-size:.56rem;letter-spacing:.07em}
   .stat b{font-size:1.02rem}

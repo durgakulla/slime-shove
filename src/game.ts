@@ -506,7 +506,8 @@ function draw(): void {
 
     drawComboMeter();
 
-    if (!input.isAiming() && S.bodies.length < 9 && S.score === 0) {
+    // Only until the first shove of a game: an empty, unscored table means none yet.
+    if (!input.isAiming() && S.bodies.length === 0 && S.score === 0) {
       ctx.fillStyle = 'rgba(246,238,255,.7)';
       ctx.font = '500 12px Fredoka, system-ui, sans-serif';
       ctx.textAlign = 'center';
@@ -653,10 +654,17 @@ function frame(now: number): void {
 }
 
 // ---------- layout ----------
-/** Scale the canvas to fill the stage while keeping the 360×620 aspect. */
+/** Scale the canvas to fill the stage while keeping the 360×620 aspect,
+ *  leaving room for the ladder and score stacked beneath it. */
 export function fit(): void {
+  const wrap = cv.parentElement;
+  const gap = parseFloat(getComputedStyle(stage).rowGap) || 0;
+  let below = 0;
+  for (const c of stage.children) {
+    if (c !== wrap) below += (c as HTMLElement).offsetHeight + gap;
+  }
   const sw = stage.clientWidth - 10,
-    sh = stage.clientHeight - 10;
+    sh = stage.clientHeight - 10 - below;
   const sc = Math.max(0.3, Math.min(sw / W, sh / H));
   const cw = Math.floor(W * sc),
     ch = Math.floor(H * sc),
