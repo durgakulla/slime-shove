@@ -58,8 +58,8 @@ Nine tiers. Radius in world units. Score is awarded when that tier is **created*
 
 ## 3a. Power slimes
 
-About **3% of spawns** arrive as a power instead of a tier slime — split evenly
-between the three kinds, so each is roughly 1% — drawn from the seeded RNG like
+About **4% of spawns** arrive as a power instead of a tier slime — split evenly
+between the four kinds, so each is 1% — drawn from the seeded RNG like
 every other gameplay decision. They show in the NEXT preview, so
 you get one shove to place them. Powers never merge, whatever tier they
 nominally carry, and both are consumed on use.
@@ -70,9 +70,19 @@ nominally carry, and both are consumed on use.
   bomb is an escape hatch, not a chain. It is the relief valve for a cluttered
   board.
 - **Magnet** — **sticks to the first slime it touches, or to the back wall**,
-  anchors there, and drags
+  anchors there, and gathers
   everything within **150 units** toward itself for **1.1 s** before vanishing,
-  leaving the clump behind. A setup tool: it builds the chain, you bank it. Fired
+  leaving the clump behind. It **steers rather than yanks**: each slime eases
+  toward a target velocity aimed at the magnet (at most 170 u/s, shrinking as
+  it closes in), so slimes arrive and stop instead of overshooting. An earlier
+  version applied a flat 1400 u/s² pull that was strongest at the centre; slimes
+  hit the clump at 300+ u/s and the result read as chaos. It **never pulls
+  toward the overflow line**: a slime above a low magnet is gathered sideways
+  only, and any downward drift is damped while the magnet is active. **Once stuck it is intangible**: nothing collides
+  with it, so slimes pulled from opposite sides pass through it and meet on top
+  of it, and matching pairs merge instead of jamming against the magnet. It is
+  drawn at reduced opacity while stuck so this reads as intended. A setup tool:
+  it builds the chain, you bank it. Fired
   up an empty lane it clamps onto the back wall, and if it somehow stops without
   touching anything it still fires rather than sitting inert. The side and near
   walls bounce it normally. It is drawn as an actual horseshoe magnet, not a slime, so it never
@@ -82,17 +92,27 @@ nominally carry, and both are consumed on use.
   partner is otherwise dead weight on the board. Landing one on a King Goo
   annihilates both for +250, exactly as two King Goos would. It will not merge
   with another power.
+- **Fan** — aims a **two-lane band** (120 units, centred on your finger, free to
+  straddle lane lines) instead of a line. On release it flies up and **hovers
+  just above the overflow line**, spins up over 0.35 s, blows for 1.2 s, then
+  winds down over 0.25 s and vanishes. Every slime in the band is pushed toward
+  the far wall, scaled by how much of the slime is inside the band and by
+  `heft`. The fan is **not a body**: it lives in `State.fan`, never collides,
+  and never counts toward overflow, so a slime sitting on the line passes
+  straight under it. Shoving stays on the normal cooldown while it blows.
 
-Both use the blast's `heft` curve, so light slimes fly and heavy ones barely
+The magnet and fan both use the blast's `heft` curve, so light slimes fly and heavy ones barely
 shift.
 
-**Rate matters more than it looks, and the budget is fixed.** At 7% powers
+**Rate matters more than it looks.** At 7% powers
 roughly doubled a run (Rush 147 → 259 shoves) because the bomb clears the board
 faster than it fills. 3% keeps Rush near 3 minutes. Adding a kind **splits** that
 3% rather than adding to it — introducing the rainbow left run length unchanged
 (Rush 183 → 181 shoves) while making King Goo easier to reach (4/30 → 8/30).
+The fan broke that rule on purpose: it was added at its own 1%, taking the
+total from 3% to 4%. Run length at 4% has not been re-measured yet.
 
-**A trap worth remembering**: the magnet's pull accumulates ~1.4 units/step,
+**A trap worth remembering**: the original magnet's pull accumulated ~1.4 units/step,
 which is below `SNAP_SPEED` (2). The clean-stop rule zeroed it every step and
 nothing moved at all. Pulled slimes are flagged and exempted from the snap.
 
@@ -127,7 +147,7 @@ When two same-tier slimes touch:
 - It starts with big wobble, a happy open-mouth face for ~0.7 s, and inherits the "armed" flag (see §6).
 - Award points from §3, show floating "+N" text at the merge point, spawn splat particles in the old tier's color, and play the merge sound.
 - **Shockwave blast** around the merge point:
-  - Radius `R = newSlime.r * 2.4 + 30`; power `230 + newTier * 22`.
+  - Radius `R = newSlime.r * 2.4 + 30`; power `115 + newTier * 11` (halved from the prototype's `230 + newTier * 22`).
   - For every other slime whose edge is within reach (`d < R + b.r`): `falloff = 1 - d/(R + b.r)`, `heft = (400 / b.mass)^0.3`, and the slime gets `dv = power × falloff × heft` added, pointing away from the center. Light slimes fly; heavy ones budge.
   - Blasted slimes also get extra wobble.
   - Visual: an expanding white ring that fades over ~0.3 s.
@@ -243,7 +263,7 @@ TOP_REST = 0.25        // far wall only — feel, not balance
 COOLDOWN = 0.45 s      // between shots
 DANGER_TIME = 2.2 s    // resting past the line before game over
 ARM_AGE = 1.3 s
-BLAST_RADIUS = r*2.4 + 30, BLAST_POWER = 230 + tier*22
+BLAST_RADIUS = r*2.4 + 30, BLAST_POWER = 115 + tier*11 (was 230 + tier*22)
 FIXED_DT = 1/120
 COMBO_WINDOW = 1.0 s    // merges inside this keep chaining
 COMBO_MAX = 9 / 50      // multiplier cap, per profile

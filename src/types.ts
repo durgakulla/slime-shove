@@ -2,7 +2,7 @@
 // and game state can all refer to a slime without importing each other.
 
 /** Special slimes that do something instead of merging. */
-export type PowerKind = 'bomb' | 'magnet' | 'rainbow';
+export type PowerKind = 'bomb' | 'magnet' | 'rainbow' | 'fan';
 
 /** What is queued on the launch line: a tier, or a power instead. */
 export interface Spawn {
@@ -61,6 +61,24 @@ export interface DrawOpts {
   radius?: number;
   /** Magnet: 0..1 of its pull remaining, for the ring animation. */
   pull?: number;
+  /** Fan: blade speed in turns per second. Omitted, it idles slowly. */
+  spin?: number;
+  /**
+   * Fan: blade angle in radians, accumulated by the caller. Deriving it from
+   * time × spin would jump every time the speed changes.
+   */
+  rot?: number;
+}
+
+/**
+ * A fan in play. Deliberately not a Slime and not in `bodies`: it hovers over
+ * the table without colliding, so it can never block a slime or overflow.
+ */
+export interface Fan {
+  x: number; // centre of the two-lane band it blows up
+  y: number;
+  age: number; // seconds since launch; drives rise, spin-up, blow and fade
+  on: boolean; // fanOn has fired
 }
 
 export interface State {
@@ -77,6 +95,7 @@ export interface State {
   /** Consecutive shoves that each merged something. */
   streak: number;
   seed: number;
+  fan?: Fan;
 }
 
 /**
@@ -90,4 +109,6 @@ export type GameEvent =
   | { kind: 'bump'; v: number }
   | { kind: 'bomb'; x: number; y: number; R: number; points: number; colors: string[] }
   | { kind: 'magnetOn'; x: number; y: number; R: number }
-  | { kind: 'magnetOff'; x: number; y: number };
+  | { kind: 'magnetOff'; x: number; y: number }
+  | { kind: 'fanOn'; x: number }
+  | { kind: 'fanOff'; x: number; y: number };

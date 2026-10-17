@@ -57,13 +57,14 @@ export const KING_POINTS = 250;
 
 let nextId = 1;
 
-/** Colours for the two power slimes, in the same shape as a tier. */
+/** Colours for the power slimes, in the same shape as a tier. */
 export const POWERS: Record<PowerKind, { c: string; light: string; dark: string; rim: string }> = {
   bomb: { c: '#4a4063', light: mix('#4a4063', 0.45), dark: mix('#4a4063', -0.45), rim: '#17122b' },
   magnet: { c: '#8fb6ff', light: mix('#8fb6ff', 0.5), dark: mix('#8fb6ff', -0.4), rim: '#2b3f73' },
   // Base tones only — the rainbow is actually filled with a shifting gradient
   // across the tier colours, so it reads as "any tier".
   rainbow: { c: '#c9a6ff', light: '#ffffff', dark: '#7a5bbf', rim: '#4a2f7a' },
+  fan: { c: '#7fe7ff', light: mix('#7fe7ff', 0.5), dark: mix('#7fe7ff', -0.45), rim: '#1d5466' },
 };
 
 /**
@@ -75,6 +76,7 @@ export function spawnColor(s: Spawn, time = 0): string {
   if (!s.power) return TIERS[s.t].c;
   if (s.power === 'bomb') return '#ffd24a'; // its fuse spark
   if (s.power === 'magnet') return '#ff5d73'; // its red arms
+  if (s.power === 'fan') return POWERS.fan.c;
   const sweep = [0, 2, 3, 5, 6, 7]; // rainbow cycles the tier palette
   return TIERS[sweep[Math.floor(Math.abs(time) * 2) % sweep.length]].c;
 }
@@ -206,11 +208,32 @@ function drawMagnet(
     ctx.stroke();
   }
 
-  // highlight along the top of the arc
+  // highlight on the upper-left shoulder, clear of the face
   ctx.beginPath();
-  ctx.arc(0, 0, Ro - arm * 0.3, Math.PI * 1.15, Math.PI * 1.55);
+  ctx.arc(0, 0, Ro - arm * 0.3, Math.PI * 1.08, Math.PI * 1.3);
   ctx.lineWidth = Math.max(1.5, r * 0.1);
   ctx.strokeStyle = 'rgba(255,255,255,.4)';
+  ctx.stroke();
+
+  // A little face on the crown of the arc, like every other piece on the board.
+  const fy = -(Ro + Ri) / 2, // middle of the band
+    er = Math.max(1.5, r * 0.085),
+    ex = r * 0.2;
+  for (const sx of [-1, 1]) {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(sx * ex, fy - er * 0.4, er, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = '#2a1238';
+    ctx.beginPath();
+    ctx.arc(sx * ex, fy - er * 0.4, er * 0.6, 0, 7);
+    ctx.fill();
+  }
+  ctx.strokeStyle = '#2a1238';
+  ctx.lineWidth = Math.max(1.1, r * 0.055);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(0, fy + er * 0.5, er * 0.9, Math.PI * 0.2, Math.PI * 0.8);
   ctx.stroke();
   ctx.restore();
 
@@ -224,6 +247,137 @@ function drawMagnet(
       ctx.arc(0, 0, r + k * r * 2.6, 0, 7);
       ctx.stroke();
     }
+  }
+}
+
+/**
+ * A little desk fan with a face on its hub: round petal blades, a soft
+ * pastel housing and a stubby stand. Drawn as a character rather than a
+ * machine so it sits with the slimes, but not as a blob, since it never
+ * touches or merges with anything. While it blows hard its eyes squeeze shut
+ * and its mouth puffs into an "o".
+ */
+function drawFan(
+  ctx: CanvasRenderingContext2D,
+  time: number,
+  r: number,
+  spin = 0.4,
+  rot = time * spin * Math.PI * 2,
+): void {
+  const T = POWERS.fan;
+  const R = r * 0.9;
+  const lw = Math.max(1.4, r * 0.07);
+
+  // stubby stand and a soft oval foot
+  ctx.fillStyle = T.light;
+  ctx.strokeStyle = T.rim;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.roundRect(-r * 0.15, R * 0.62, r * 0.3, r * 0.38, r * 0.15);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(0, R + r * 0.1, r * 0.48, r * 0.16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // housing: a soft glowing disc
+  const g = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.1, 0, 0, R * 1.05);
+  g.addColorStop(0, '#8fe4f7');
+  g.addColorStop(0.6, '#4fbcd9');
+  g.addColorStop(1, '#2f8fb0');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // five round petal blades
+  for (let i = 0; i < 5; i++) {
+    ctx.save();
+    ctx.rotate(rot + (i * Math.PI * 2) / 5);
+    ctx.beginPath();
+    ctx.ellipse(R * 0.5, 0, R * 0.36, R * 0.2, 0.35, 0, Math.PI * 2);
+    ctx.fillStyle = i % 2 ? '#ffffff' : '#d6f7ff';
+    ctx.fill();
+    ctx.restore();
+  }
+  // a fast fan blurs into a soft disc rather than strobing
+  const blur = Math.min(1, Math.max(0, (spin - 1) / 3));
+  if (blur > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${(0.45 * blur).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.88, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // rim
+  ctx.strokeStyle = T.rim;
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.stroke();
+  // little shine on the rim
+  ctx.strokeStyle = 'rgba(255,255,255,.7)';
+  ctx.lineWidth = Math.max(1.2, r * 0.06);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.84, Math.PI * 1.1, Math.PI * 1.4);
+  ctx.stroke();
+
+  // the face, on a big round hub
+  const hr = R * 0.42;
+  ctx.fillStyle = '#fff6e9';
+  ctx.strokeStyle = T.rim;
+  ctx.lineWidth = Math.max(1, r * 0.05);
+  ctx.beginPath();
+  ctx.arc(0, 0, hr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  const blowing = spin > 2;
+  const ex = hr * 0.42,
+    ey = -hr * 0.12,
+    er = Math.max(1.4, hr * 0.17);
+  ctx.strokeStyle = ctx.fillStyle = '#2a1238';
+  ctx.lineWidth = Math.max(1.2, hr * 0.12);
+  ctx.lineCap = 'round';
+  for (const sx of [-1, 1]) {
+    ctx.beginPath();
+    if (blowing) {
+      // squeezed shut: > <
+      ctx.moveTo(sx * ex + sx * er * 0.7, ey - er * 0.8);
+      ctx.lineTo(sx * ex - sx * er * 0.5, ey);
+      ctx.lineTo(sx * ex + sx * er * 0.7, ey + er * 0.8);
+      ctx.stroke();
+    } else {
+      ctx.arc(sx * ex, ey, er, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(sx * ex - er * 0.3, ey - er * 0.35, er * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2a1238';
+    }
+  }
+  // blush
+  ctx.fillStyle = 'rgba(255,110,160,.45)';
+  for (const sx of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(sx * hr * 0.62, hr * 0.28, hr * 0.17, hr * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // mouth: a small smile, or a puffing "o" while it blows
+  ctx.strokeStyle = '#2a1238';
+  ctx.fillStyle = '#5a1838';
+  ctx.lineWidth = Math.max(1, hr * 0.1);
+  ctx.beginPath();
+  if (blowing) {
+    const puff = 1 + 0.15 * Math.sin(time * 14);
+    ctx.ellipse(0, hr * 0.38, hr * 0.13 * puff, hr * 0.16 * puff, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.arc(0, hr * 0.2, hr * 0.2, Math.PI * 0.2, Math.PI * 0.8);
+    ctx.stroke();
   }
 }
 
@@ -246,7 +400,7 @@ export function drawSlime(
   // soft drop shadow, offset down-right
   ctx.fillStyle = 'rgba(8,2,22,.32)';
   ctx.beginPath();
-  if (o.power === 'magnet') {
+  if (o.power === 'magnet' || o.power === 'fan') {
     // A flat shadow under the magnet. The body-sized blob used for slimes made
     // it read as a round thing wearing a magnet, which is the whole problem.
     ctx.ellipse(0, r * 0.74, r * 0.8, r * 0.18, 0, 0, Math.PI * 2);
@@ -266,6 +420,11 @@ export function drawSlime(
 
   if (o.power === 'magnet') {
     drawMagnet(ctx, time, r, o.pull);
+    ctx.restore();
+    return;
+  }
+  if (o.power === 'fan') {
+    drawFan(ctx, time, r, o.spin, o.rot);
     ctx.restore();
     return;
   }
@@ -365,7 +524,7 @@ export function drawSlime(
   // face — pupils track the direction of travel, or look where told
   const er = Math.max(2.2, r * (o.power ? 0.11 : 0.14)),
     ex = r * (o.power ? 0.27 : 0.33),
-    ey = o.power ? r * 0.3 : -r * 0.06;
+    ey = o.power ? r * 0.12 : -r * 0.06;
   let lx = 0,
     ly = 0;
   if (sp > 20) {
@@ -415,7 +574,9 @@ export function drawSlime(
   ctx.fillStyle = '#5a1838';
   ctx.lineWidth = Math.max(1.5, r * 0.06);
   ctx.lineCap = 'round';
-  const my = r * 0.24,
+  // Powers sit their face lower (the bomb's fuse takes the top), so their
+  // mouth drops with it and stays below the eyes.
+  const my = o.power ? r * 0.44 : r * 0.24,
     mw = r * 0.2;
   if ((o.joy ?? 0) > 0) {
     ctx.beginPath();

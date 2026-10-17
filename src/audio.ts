@@ -144,6 +144,15 @@ export const sfx = {
     setTimeout(() => tone(147, 690, 0.9, 0.09, 'sine'), 35); // detune = beating
     noise(0.85, 0.07, 280, 2400); // airy swell underneath
   },
+  /**
+   * Spins up and blows: a rising hum under an airy swell that lasts roughly
+   * FAN_SPIN + FAN_TIME, then a softer tail as it winds down.
+   */
+  fan(): void {
+    tone(70, 150, 1.5, 0.07, 'triangle');
+    noise(0.9, 0.12, 400, 1800);
+    setTimeout(() => noise(0.95, 0.1, 1800, 300), 650);
+  },
   shove(): void {
     tone(260, 520, 0.1, 0.12, 'triangle');
   },

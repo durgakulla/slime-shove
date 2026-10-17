@@ -49,14 +49,28 @@ export const STREAK_MAX_MULT = 3;
 
 // --- Power slimes (DESIGN.md §3a) ---
 // Share of spawns that arrive as a power rather than a tier slime, split
-// evenly between the three kinds.
-export const POWER_CHANCE = 0.03;
+// evenly between the four kinds.
+export const POWER_CHANCE = 0.04;
 export const POWER_R = 20; // every power slime is this size
 export const BOMB_RADIUS = 86; // slimes inside this are destroyed
 export const MAGNET_RADIUS = 150;
-export const MAGNET_PULL = 1400; // acceleration toward the magnet
+// The magnet steers rather than yanks: each slime eases toward a target
+// velocity aimed at the magnet, which shrinks as it closes in, so slimes arrive
+// gently instead of overshooting or crashing into the clump.
+export const MAGNET_SPEED = 170; // fastest approach speed
+export const MAGNET_GAIN = 3.5; // target speed per unit of distance, so it slows on arrival
+export const MAGNET_STEER = 5; // how quickly velocity turns toward the target, per second
 export const MAGNET_TIME = 1.1; // seconds it pulls before vanishing
 export const MAGNET_LAND_SPEED = 70; // it starts pulling once this slow
+// Fan: hovers above the overflow line and blows a two-lane band toward the
+// far wall. Phases run back to back: rise, spin up, blow, spin down.
+export const FAN_HALF = W / 6; // half the band width: the band is two lanes
+export const FAN_HOVER = 26; // hover height above the overflow line
+export const FAN_RISE = 0.18;
+export const FAN_SPIN = 0.35;
+export const FAN_TIME = 1.2;
+export const FAN_FADE = 0.25;
+export const FAN_PUSH = 1500; // upward acceleration at full strength
 
 // How far past a blast's physical reach slimes still pull a surprised face.
 export const REACT_REACH = 1.5;

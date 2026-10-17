@@ -7,8 +7,18 @@
 import {
   ARM_AGE,
   BOMB_RADIUS,
+  FAN_FADE,
+  FAN_HALF,
+  FAN_HOVER,
+  FAN_PUSH,
+  FAN_RISE,
+  FAN_SPIN,
+  FAN_TIME,
+  LAUNCH_Y,
   MAGNET_LAND_SPEED,
-  MAGNET_PULL,
+  MAGNET_GAIN,
+  MAGNET_SPEED,
+  MAGNET_STEER,
   MAGNET_RADIUS,
   MAGNET_TIME,
   POWER_CHANCE,
@@ -87,6 +97,11 @@ function blast(
   }
 }
 
+/** A magnet that has landed and is pulling. Nothing collides with it. */
+function stuckMagnet(b: Slime): boolean {
+  return b.power === 'magnet' && b.fuse !== undefined;
+}
+
 /** Clamp a magnet in place and start its pull. */
 function stickMagnet(m: Slime, ev: GameEvent[]): void {
   if (m.fuse !== undefined) return;
@@ -156,7 +171,7 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
   }
 
   // --- magnets ---
-  // A magnet starts pulling once it has slowed down, drags everything nearby
+  // A magnet starts pulling once it has slowed down, gathers everything nearby
   // toward itself for MAGNET_TIME, then vanishes, leaving a clump behind.
   for (const b of B) {
     if (b.power !== 'magnet' || b.dead) continue;
@@ -178,12 +193,60 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
         dy = b.y - o.y,
         d = Math.hypot(dx, dy) || 0.01;
       if (d > MAGNET_RADIUS) continue;
-      // Same heft curve as a blast, so heavy slimes resist being dragged.
+      // Steer, don't yank: ease the slime's velocity toward a target aimed at
+      // the magnet. The target shrinks with distance, so it arrives and stops
+      // rather than overshooting. Heavy slimes turn more slowly (same heft
+      // curve as a blast), and the edge of the range pulls more gently.
       const fall = 1 - d / MAGNET_RADIUS;
-      const acc = MAGNET_PULL * fall * Math.pow(400 / o.m, 0.3) * dt;
-      o.vx += (dx / d) * acc;
-      o.vy += (dy / d) * acc;
+      const speed = Math.min(MAGNET_SPEED, d * MAGNET_GAIN);
+      const tvx = (dx / d) * speed;
+      let tvy = (dy / d) * speed;
+      const rate = Math.min(1, MAGNET_STEER * (0.35 + 0.65 * fall) * Math.pow(400 / o.m, 0.3) * dt);
+      o.vx += (tvx - o.vx) * rate;
+      // Never toward the overflow line: a slime above a low magnet is gathered
+      // sideways only, and its vertical motion is left alone.
+      if (tvy > 0) tvy = Math.min(o.vy, 0);
+      o.vy += (tvy - o.vy) * rate;
       o.pulled = true;
+    }
+  }
+
+  // --- fan ---
+  // Flies up from the launch line, hovers just above the overflow line, and
+  // blows every slime in its band toward the far wall. It is not a body, so
+  // nothing collides with it.
+  const F = S.fan;
+  if (F) {
+    F.age += dt;
+    const hoverY = LINE_Y - FAN_HOVER;
+    const u = Math.min(1, F.age / FAN_RISE);
+    F.y = LAUNCH_Y + (hoverY - LAUNCH_Y) * (1 - (1 - u) * (1 - u));
+    const w = F.age - FAN_RISE; // time since it reached the hover point
+    if (w >= 0 && !F.on) {
+      F.on = true;
+      ev.push({ kind: 'fanOn', x: F.x });
+    }
+    const k = fanStrength(w);
+    if (k > 0) {
+      const lo = F.x - FAN_HALF,
+        hi = F.x + FAN_HALF;
+      for (const b of B) {
+        if (b.dead) continue;
+        // Share of the slime's width inside the band, so one straddling the
+        // edge gets a partial push rather than all or nothing.
+        const overlap = (Math.min(b.x + b.r, hi) - Math.max(b.x - b.r, lo)) / (2 * b.r);
+        if (overlap <= 0) continue;
+        // Same heft curve as a blast, so heavy slimes are slower to go.
+        b.vy -= FAN_PUSH * k * Math.min(1, overlap) * Math.pow(400 / b.m, 0.3) * dt;
+        // The push per step is below SNAP_SPEED, the same trap as the magnet.
+        b.pulled = true;
+        b.armed = b.armed || b.age > 1;
+        b.wob = Math.min(0.2, b.wob + 0.004);
+      }
+    }
+    if (w >= FAN_SPIN + FAN_TIME + FAN_FADE) {
+      ev.push({ kind: 'fanOff', x: F.x, y: F.y });
+      S.fan = undefined;
     }
   }
 
@@ -203,6 +266,10 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
           d2 = dx * dx + dy * dy;
         if (d2 >= min * min) continue;
         const d = Math.sqrt(d2) || 0.01;
+        // Once a magnet has stuck it is intangible: the slimes it drags in pass
+        // straight through it and meet each other on top of it, so they merge
+        // instead of jamming against the magnet.
+        if (stuckMagnet(a) || stuckMagnet(b)) continue;
         // A bomb goes off the instant it touches anything.
         const bomb = a.power === 'bomb' ? a : b.power === 'bomb' ? b : null;
         if (bomb) {
@@ -224,8 +291,8 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
           }
         }
         // A magnet sticks to the first thing it touches and starts pulling.
-        // Collision resolution still runs; the anchor below pins it to the spot
-        // it landed so the slimes it drags in cannot shove it away.
+        // This first contact still resolves normally; from the next pair on it
+        // is skipped above. The anchor below pins it to the spot it landed.
         const mag = a.power === 'magnet' ? a : b.power === 'magnet' ? b : null;
         if (mag) stickMagnet(mag, ev);
 
@@ -283,7 +350,9 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
       // b is the rainbow when one was involved: merges are pushed as
       // [ordinary slime, rainbow] so the tier comes from the right one.
       ev.push({ kind: 'merge', tier: nb.t, fromTier: a.t, x, y, rainbow: b.power === 'rainbow' });
-      blast(S, x, y, nb.r * 2.4 + 30, 230 + nb.t * 22, ev, nb);
+      // Half the prototype's 230 + t*22: at full strength a merge on a magnet
+      // flung away the very slimes the magnet was gathering.
+      blast(S, x, y, nb.r * 2.4 + 30, 115 + nb.t * 11, ev, nb);
     }
   }
 
@@ -310,7 +379,7 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
   // --- magnets that have finished pulling ---
   for (const b of B) {
     if (b.power !== 'magnet' || b.dead || b.fuse === undefined) continue;
-    // Anchored: the slimes it drags in must not be able to shove it away.
+    // Anchored, so nothing else (a blast, the fan) can move it once it lands.
     if (b.ax !== undefined && b.ay !== undefined) {
       b.x = b.ax;
       b.y = b.ay;
@@ -352,6 +421,17 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
   return { lineHot: hot, pressure: Math.max(0, Math.min(1, press)), over: false };
 }
 
+/**
+ * 0..1 wind strength `w` seconds after the fan reached its hover point:
+ * ramps up over FAN_SPIN, holds for FAN_TIME, then dies away over FAN_FADE.
+ */
+export function fanStrength(w: number): number {
+  if (w <= 0) return 0;
+  if (w < FAN_SPIN) return w / FAN_SPIN;
+  if (w < FAN_SPIN + FAN_TIME) return 1;
+  return Math.max(0, 1 - (w - FAN_SPIN - FAN_TIME) / FAN_FADE);
+}
+
 /** Tier for an ordinary slime: 40% / 30% / 20% / 10% across tiers 0–3. */
 export function pickTier(rnd: () => number): number {
   const x = rnd();
@@ -365,7 +445,7 @@ export function pickTier(rnd: () => number): number {
 export function pickSpawn(rnd: () => number): Spawn {
   if (rnd() < POWER_CHANCE) {
     const k = rnd();
-    return { t: 0, power: k < 1 / 3 ? 'bomb' : k < 2 / 3 ? 'magnet' : 'rainbow' };
+    return { t: 0, power: k < 0.25 ? 'bomb' : k < 0.5 ? 'magnet' : k < 0.75 ? 'rainbow' : 'fan' };
   }
   return { t: pickTier(rnd) };
 }

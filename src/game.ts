@@ -6,6 +6,8 @@ import {
   applyProfile,
   BUMP_SPEED,
   COOLDOWN,
+  FAN_HALF,
+  FAN_RISE,
   FIXED_DT,
   H,
   LAUNCH_Y,
@@ -22,7 +24,7 @@ import { chainMultiplier, mergeScore, onLaunch, streakMultiplier } from './combo
 import { hideGameOver, renderLadder, setBest, setScore, showGameOver } from './hud';
 import { initInput, type InputHandle } from './input';
 import { maybeOfferInstall } from './install';
-import { pickSpawn, step } from './physics';
+import { fanStrength, pickSpawn, step } from './physics';
 import {
   KING_POINTS,
   MAXT,
@@ -85,6 +87,8 @@ let shake = 0;
 let powerFlash = 0;
 /** Whether a power was on the line last frame, so the wave fires only once. */
 let powerOnLine = false;
+/** Blade angle of the fan in play, accumulated each frame from its speed. */
+let fanRot = 0;
 /** Counts down after each combo step so the meter can pop. */
 let comboPop = 0;
 /** True once this run has passed the stored best, so it only celebrates once. */
@@ -230,6 +234,12 @@ function applyEvents(ev: GameEvent[]): void {
       case 'magnetOff':
         splat(e.x, e.y, POWERS.magnet.c, 14, 150);
         break;
+      case 'fanOn':
+        sfx.fan();
+        break;
+      case 'fanOff':
+        splat(e.x, e.y, POWERS.fan.c, 12, 120);
+        break;
       case 'king':
         bumpChain();
         addScore(mergeScore(KING_POINTS, S.chain, S.streak), e.x, e.y);
@@ -251,17 +261,23 @@ function gameOver(): void {
 
 // ---------- input wiring ----------
 function aimAt(worldX: number): void {
-  const r = spawnRadius(S.pending);
-  S.launchX = Math.max(r + 4, Math.min(W - r - 4, worldX));
+  // A fan aims its whole two-lane band, so that is what has to stay on the board.
+  const r = S.pending.power === 'fan' ? FAN_HALF : spawnRadius(S.pending) + 4;
+  S.launchX = Math.max(r, Math.min(W - r, worldX));
 }
 
 function launch(): void {
   if (S.over || S.cool > 0) return;
   // Score the shove that just finished, then start a fresh chain.
   onLaunch(S);
-  const b = body(S.pending.t, S.launchX, LAUNCH_Y, 0, -MAX_V, S.pending.power);
-  b.wob = 0.25;
-  S.bodies.push(b);
+  if (S.pending.power === 'fan') {
+    // Not a body: physics flies it up to its hover point and runs the wind.
+    S.fan = { x: S.launchX, y: LAUNCH_Y, age: 0, on: false };
+  } else {
+    const b = body(S.pending.t, S.launchX, LAUNCH_Y, 0, -MAX_V, S.pending.power);
+    b.wob = 0.25;
+    S.bodies.push(b);
+  }
   S.pending = S.next;
   S.next = pickSpawn(rnd);
   S.cool = COOLDOWN;
@@ -349,6 +365,11 @@ function drawAim(): void {
   const aiming = input.isAiming();
   const colour = spawnColor(S.pending, time);
   const power = !!S.pending.power;
+  if (S.pending.power === 'fan') {
+    // The fan aims a two-lane band rather than a line: light up what it will blow.
+    drawWindBand(x, aiming ? 1 : 0.5, aiming);
+    return;
+  }
   const dots = (radius: number): void => {
     for (let y = LAUNCH_Y - r - 10; y > 8; y -= 16) {
       ctx.beginPath();
@@ -380,6 +401,79 @@ function drawAim(): void {
   ctx.globalAlpha = aiming ? 0.9 : 0.34;
   ctx.fillStyle = colour;
   dots(power ? (aiming ? 3 : 2.4) : aiming ? 2.6 : 2);
+  ctx.restore();
+}
+
+/** Turns per second for the fan in play: idling while it rises, then full speed with the wind. */
+function fanSpin(): number {
+  return S.fan ? 0.4 + 5.5 * fanStrength(S.fan.age - FAN_RISE) : 0;
+}
+
+/**
+ * The two lanes a fan blows up: a cyan wash between waving edges, with
+ * rippling wisps of breeze drifting toward the far wall. Every line is a sine
+ * wave travelling upward. `k` is 0..1 strength;
+ * `edges` adds the borders, shown while aiming.
+ */
+function drawWindBand(cx: number, k: number, edges: boolean): void {
+  const x0 = cx - FAN_HALF,
+    x1 = cx + FAN_HALF;
+  const t = reduced ? 0 : time;
+  ctx.save();
+  const g = ctx.createLinearGradient(0, 0, 0, LINE_Y);
+  g.addColorStop(0, `rgba(127,231,255,${(0.16 * k).toFixed(3)})`);
+  g.addColorStop(1, `rgba(127,231,255,${(0.05 * k).toFixed(3)})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x0, 0, x1 - x0, LINE_Y);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (edges) {
+    // Waving borders, kept just inside the band so they never wobble outside
+    // what the fan blows. The wave travels upward, like the wisps.
+    ctx.strokeStyle = `rgba(127,231,255,${(0.45 * k).toFixed(3)})`;
+    ctx.lineWidth = 1.5;
+    for (const [ex, dir] of [
+      [x0, 1],
+      [x1, -1],
+    ] as const) {
+      ctx.beginPath();
+      for (let y = LINE_Y; y >= 0; y -= 6) {
+        const x = ex + dir * (3 + 3 * Math.sin(y * 0.06 + t * 7));
+        if (y === LINE_Y) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Wisps: short sine-wave strands drifting toward the far wall, with the wave
+  // itself travelling up each strand so the breeze ripples as it goes.
+  const gap = 84,
+    len = 54,
+    amp = 5,
+    off = (t * 75) % gap;
+  const lanes = [-0.55, 0.05, 0.6];
+  ctx.lineWidth = 2;
+  lanes.forEach((lx, i) => {
+    const stagger = (i * gap) / lanes.length;
+    const ph = i * 2.1 - t * 7;
+    for (let y0 = LINE_Y - 10 - ((off + stagger) % gap); y0 > len + 8; y0 -= gap) {
+      // fade in near the fan and out near the far wall
+      const fade = Math.min(1, (LINE_Y - y0) / 60, (y0 - len) / 80);
+      if (fade <= 0) continue;
+      ctx.strokeStyle = `rgba(220,248,255,${(0.45 * k * fade).toFixed(3)})`;
+      const bx = cx + lx * FAN_HALF;
+      ctx.beginPath();
+      for (let s = 0; s <= 1.0001; s += 0.05) {
+        const x = bx + amp * Math.sin(s * Math.PI * 2.5 + ph),
+          y = y0 - s * len;
+        if (s === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  });
   ctx.restore();
 }
 
@@ -433,13 +527,31 @@ function draw(): void {
   drawTable();
   drawAim();
 
+  // A blowing fan keeps its lanes lit, under the slimes it is pushing.
+  const fanK = S.fan ? fanStrength(S.fan.age - FAN_RISE) : 0;
+  if (S.fan && fanK > 0) drawWindBand(S.fan.x, fanK, false);
+
   // near-to-far so bigger slimes in front overlap correctly
   const sorted = [...S.bodies].sort((a, b) => a.y - b.y);
   for (const b of sorted) {
+    // A stuck magnet is intangible, so it is drawn see-through: slimes passing
+    // over it should read as intended, not as a collision bug.
+    const ghost = b.power === 'magnet' && b.fuse !== undefined;
+    if (ghost) ctx.globalAlpha = 0.55;
     drawSlime(ctx, time, b.t, b.x, b.y, {
       ...b,
       radius: b.power ? POWER_R : undefined,
       pull: b.fuse !== undefined ? Math.max(0, b.fuse / MAGNET_TIME) : undefined,
+    });
+    if (ghost) ctx.globalAlpha = 1;
+  }
+  // The fan hovers over the slimes, never among them.
+  if (S.fan) {
+    drawSlime(ctx, time, 0, S.fan.x, S.fan.y, {
+      power: 'fan',
+      radius: POWER_R,
+      spin: fanSpin(),
+      rot: fanRot,
     });
   }
 
@@ -618,6 +730,7 @@ function frame(now: number): void {
   powerOnLine = onLine;
   if (powerFlash > 0) powerFlash = Math.max(0, powerFlash - dt * 1.15);
 
+  if (S.fan) fanRot += fanSpin() * dt * Math.PI * 2;
   shake *= Math.exp(-9 * dt);
   comboPop = Math.max(0, comboPop - dt * 5);
 
