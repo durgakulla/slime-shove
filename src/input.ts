@@ -12,7 +12,7 @@ export interface InputDeps {
   aimAt(worldX: number): void;
   /** Release — launch the waiting slime. */
   launch(): void;
-  /** First contact of any kind, used to unlock the audio context. */
+  /** Every touch and release, used to unlock or wake the audio context. */
   onFirstTouch(): void;
 }
 
@@ -46,6 +46,8 @@ export function initInput(d: InputDeps): InputHandle {
   });
 
   cv.addEventListener('pointerup', (e) => {
+    // On iOS a touch only counts as a gesture on release, so audio unlocks here.
+    d.onFirstTouch();
     if (aimId === null || e.pointerId !== aimId) return;
     aimId = null;
     d.launch();

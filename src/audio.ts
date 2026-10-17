@@ -10,6 +10,18 @@ let lastBump = 0;
 
 type AudioCtor = typeof AudioContext;
 
+/**
+ * Create or wake the audio context. Safe to call on every touch.
+ *
+ * iOS is stricter than desktop Safari in three ways, each of which silences
+ * the game on an iPhone while it plays fine on a Mac:
+ * - A touch's pointerdown is not a user gesture there; only pointerup /
+ *   touchend / click are. So input.ts also calls this on release.
+ * - The context can be left 'interrupted' (lock screen, a call, switching
+ *   apps), not just 'suspended', and must be resumed from either.
+ * - Web Audio follows the ring/silent switch by default. Sound here is opt-in
+ *   via the toggle, so the session is set to 'playback' to play regardless.
+ */
 export function ensureAudio(): void {
   if (!actx) {
     try {
@@ -20,7 +32,23 @@ export function ensureAudio(): void {
       /* no audio available; the game plays fine silently */
     }
   }
-  if (actx && actx.state === 'suspended') void actx.resume();
+  if (!actx) return;
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session && session.type !== 'playback') {
+    try {
+      session.type = 'playback';
+    } catch {
+      /* older iOS: no audio session API */
+    }
+  }
+  if (actx.state !== 'running') {
+    void actx.resume().catch(() => {});
+    // Older iOS only unlocks once something actually plays inside the gesture.
+    const src = actx.createBufferSource();
+    src.buffer = actx.createBuffer(1, 1, actx.sampleRate);
+    src.connect(actx.destination);
+    src.start(0);
+  }
 }
 
 export function isSoundOn(): boolean {
