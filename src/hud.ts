@@ -129,7 +129,10 @@ export async function shareResult(): Promise<void> {
   const touch = matchMedia('(pointer: coarse)').matches;
   if (touch && navigator.share) {
     try {
-      await navigator.share({ text: shareText, url: GAME_URL });
+      // Text only, with the link inside it. Given a separate `url`, iOS hands
+      // most targets (Messages, Copy, many apps) just the link and drops the
+      // text. Apps still turn the link in the text into a preview.
+      await navigator.share({ text: full });
       return;
     } catch (e) {
       // Closing the share sheet rejects with AbortError: the player chose not to.
