@@ -47,11 +47,21 @@
       <h2>The tub overflowed</h2>
       <p>Final score</p>
       <div class="big" id="final">0</div>
-      <p id="biggest"></p>
-      <button id="again" type="button">Shove again</button>
+      <p id="newBest" hidden>New best!</p>
+      <dl class="runstats">
+        <div><dt>Shoves</dt><dd id="stShoves">0</dd></div>
+        <div><dt>Merges</dt><dd id="stMerges">0</dd></div>
+        <div><dt>Best streak</dt><dd id="stStreak">0</dd></div>
+        <div><dt>Best chain</dt><dd id="stChain">–</dd></div>
+      </dl>
+      <div class="overBtns">
+        <button id="again" type="button">Shove again</button>
+        <button id="share" type="button">Share</button>
+      </div>
+      <p id="shareNote" role="status"></p>
       <div id="install" hidden>
         <button id="installBtn" type="button" hidden>Add to home screen</button>
-        <p id="installHint" hidden>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong> to play offline.</p>
+        <p id="installHint" hidden>In Safari, tap <strong>Share</strong>, then <strong>Add to Home Screen</strong> to play offline.</p>
       </div>
     </div>
   </div>
@@ -66,16 +76,15 @@
   <div class="sheet">
     <h2>How to play</h2>
     <ul>
-      <li>Drag to slide the slime along the line, then let go to shove it up the board.</li>
-      <li>Two slimes of the <strong>same size</strong> merge into the next size up.</li>
-      <li>Each extra merge from a single shove pays more: 2nd <strong>×2</strong>, 3rd <strong>×3</strong>. Keep every shove merging to build a <strong>streak</strong> bonus.</li>
-      <li>It ends when slimes settle past the <strong>overflow line</strong>.</li>
+      <li>Drag, then let go to shove.</li>
+      <li>Merging slimes of the <strong>same type</strong> makes a bigger slime and gives you points.</li>
+      <li>More merges in one shove = <strong>more points</strong>.</li>
+      <li>Consecutive shoves with merges = <strong>more points</strong>. A shove with no merge resets it.</li>
+      <li>Don't let slimes settle past the <strong>overflow line</strong>.</li>
     </ul>
-    <h3>Powers <small>about 1 shove in 25</small></h3>
+    <h3>Powers</h3>
     <div id="powerList"></div>
-    <h3>Modes</h3>
-    <p class="modes"><strong>Classic</strong> is a long board; <strong>Rush</strong> is shorter and faster.
-    Each keeps its own best score.</p>
+    <p class="modes"><strong>Rush</strong> is a shorter, faster board than <strong>Classic</strong>.</p>
     <button id="helpClose" type="button">Got it</button>
   </div>
 </div>

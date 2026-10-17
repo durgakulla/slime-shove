@@ -25,9 +25,9 @@ const TIER_SEEDS: TierSeed[] = [
   { n: 'Wobbler', r: 27, c: '#ffd84a' },
   { n: 'Glooper', r: 33, c: '#ff9f45' },
   { n: 'Big Gloop', r: 40, c: '#ff6577' },
-  { n: 'Jellyfiend', r: 48, c: '#ff6cd0' },
-  { n: 'Slime Lord', r: 57, c: '#a97bff' },
-  { n: 'King Goo', r: 67, c: '#6d8bff' },
+  { n: 'Slime Lord', r: 48, c: '#ff6cd0' },
+  { n: 'Jelly Queen', r: 57, c: '#a97bff' },
+  { n: 'King Slimer', r: 67, c: '#6d8bff' },
 ];
 
 /** Blend a hex colour toward white (amt > 0) or black (amt < 0). */
@@ -474,7 +474,7 @@ export function drawSlime(
   ctx.arc(-r * 0.12, -r * 0.6, r * 0.06, 0, Math.PI * 2);
   ctx.fill();
 
-  // crown for the top two tiers; King Goo gets a gem
+  // crown for the top two tiers; King Slimer gets a gem
   if (t >= 7 && !o.power) {
     const cw = r * 0.62,
       cy = -r * 0.82;

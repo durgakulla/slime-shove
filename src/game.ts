@@ -134,6 +134,7 @@ function freshState(seed = randomSeed()): State {
     chain: 0,
     streak: 0,
     seed,
+    run: { merges: 0, bestChain: 0, bestStreak: 0, shoves: 0 },
   };
   return s;
 }
@@ -142,6 +143,8 @@ function freshState(seed = randomSeed()): State {
 /** One more merge in the current shove. */
 function bumpChain(): void {
   S.chain++;
+  S.run.merges++;
+  S.run.bestChain = Math.max(S.run.bestChain, S.chain);
   if (S.chain >= 2) comboPop = 1;
 }
 
@@ -255,7 +258,11 @@ function applyEvents(ev: GameEvent[]): void {
 function gameOver(): void {
   S.over = true;
   sfx.over();
-  showGameOver(S.score, S.maxTier);
+  // The last shove's merges only reach the streak on the next launch, which
+  // never comes, so count it here.
+  const streak = S.chain > 0 ? S.streak + 1 : S.streak;
+  S.run.bestStreak = Math.max(S.run.bestStreak, streak);
+  showGameOver(S.score, S.run, beatBest, runStartBest, profile.label);
   maybeOfferInstall();
 }
 
@@ -270,6 +277,8 @@ function launch(): void {
   if (S.over || S.cool > 0) return;
   // Score the shove that just finished, then start a fresh chain.
   onLaunch(S);
+  S.run.shoves++;
+  S.run.bestStreak = Math.max(S.run.bestStreak, S.streak);
   if (S.pending.power === 'fan') {
     // Not a body: physics flies it up to its hover point and runs the wind.
     S.fan = { x: S.launchX, y: LAUNCH_Y, age: 0, on: false };

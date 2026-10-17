@@ -279,8 +279,8 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
         }
         // A rainbow merges with whatever ordinary slime it meets, taking that
         // slime's tier. Pushed as [other, rainbow] because merge resolution
-        // reads the first entry's tier — so a rainbow on a King Goo
-        // annihilates exactly as two King Goos would.
+        // reads the first entry's tier — so a rainbow on a King Slimer
+        // annihilates exactly as two King Slimers would.
         const rb = a.power === 'rainbow' ? a : b.power === 'rainbow' ? b : null;
         if (rb) {
           const other = rb === a ? b : a;
@@ -333,7 +333,7 @@ export function step(S: State, dt: number, ev: GameEvent[]): StepResult {
       const vx = ((a.vx * a.m + b.vx * b.m) / tot) * 0.45,
         vy = ((a.vy * a.m + b.vy * b.m) / tot) * 0.45;
       if (a.t === MAXT) {
-        // Two King Goos annihilate each other with a much bigger blast.
+        // Two King Slimers annihilate each other with a much bigger blast.
         ev.push({ kind: 'king', x, y });
         blast(S, x, y, 220, 520, ev);
         continue;

@@ -45,11 +45,11 @@ Nine tiers. Radius in world units. Score is awarded when that tier is **created*
 | 3    | Wobbler     | 27     | `#ffd84a` | 12                 |
 | 4    | Glooper     | 33     | `#ff9f45` | 20                 |
 | 5    | Big Gloop   | 40     | `#ff6577` | 30                 |
-| 6    | Jellyfiend  | 48     | `#ff6cd0` | 42                 |
-| 7    | Slime Lord  | 57     | `#a97bff` | 56                 |
-| 8    | King Goo    | 67     | `#6d8bff` | 72                 |
+| 6    | Slime Lord  | 48     | `#ff6cd0` | 42                 |
+| 7    | Jelly Queen | 57     | `#a97bff` | 56                 |
+| 8    | King Slimer | 67     | `#6d8bff` | 72                 |
 
-- Two **King Goos** merging: both vanish, **+250** points, and a big blast (see §5).
+- Two **King Slimers** merging: both vanish, **+250** points, and a big blast (see §5).
 - All merge points are multiplied by the current **combo** (see §5a).
 - **Spawn table** for new slimes (only tiers 0–3 ever spawn): 40% Droplet, 30% Squirt, 20% Blob, 10% Wobbler.
 - Mass = `r²` (used in collisions and blast response).
@@ -89,8 +89,8 @@ nominally carry, and both are consumed on use.
   reads as something you could merge.
 - **Rainbow** — merges with whatever ordinary slime it touches, producing that
   slime's next tier up. It answers the orphan problem: one big slime with no
-  partner is otherwise dead weight on the board. Landing one on a King Goo
-  annihilates both for +250, exactly as two King Goos would. It will not merge
+  partner is otherwise dead weight on the board. Landing one on a King Slimer
+  annihilates both for +250, exactly as two King Slimers would. It will not merge
   with another power.
 - **Fan** — aims a **two-lane band** (120 units, centred on your finger, free to
   straddle lane lines) instead of a line. On release it flies up and **hovers
@@ -108,7 +108,7 @@ shift.
 roughly doubled a run (Rush 147 → 259 shoves) because the bomb clears the board
 faster than it fills. 3% keeps Rush near 3 minutes. Adding a kind **splits** that
 3% rather than adding to it — introducing the rainbow left run length unchanged
-(Rush 183 → 181 shoves) while making King Goo easier to reach (4/30 → 8/30).
+(Rush 183 → 181 shoves) while making King Slimer easier to reach (4/30 → 8/30).
 The fan broke that rule on purpose: it was added at its own 1%, taking the
 total from 3% to 4%. Run length at 4% has not been re-measured yet.
 
@@ -151,7 +151,7 @@ When two same-tier slimes touch:
   - For every other slime whose edge is within reach (`d < R + b.r`): `falloff = 1 - d/(R + b.r)`, `heft = (400 / b.mass)^0.3`, and the slime gets `dv = power × falloff × heft` added, pointing away from the center. Light slimes fly; heavy ones budge.
   - Blasted slimes also get extra wobble.
   - Visual: an expanding white ring that fades over ~0.3 s.
-- King Goo + King Goo: blast radius 220, power 520, 40 particles.
+- King Slimer + King Slimer: blast radius 220, power 520, 40 particles.
 
 Chain reactions come naturally from blasts and from new slimes touching same-tier neighbors.
 
@@ -192,7 +192,7 @@ ticking away.
 - When any body reaches **2.2 s** of danger → game over.
 - Warnings: the slime flashes red and its mouth flips to a worried frown; the overflow line pulses brighter.
 - **Pressure glow**: an amber haze swells up from the line as the pile creeps toward it, over a `WARN_RANGE` of 160 units. The danger timer above only runs in the last few percent of a game — measured at 4% of shoves — so without this the loss arrives with no warning. The glow is what makes the threat legible while there is still time to react.
-- Game over overlay: "The tub overflowed", final score, biggest slime reached, and a "Shove again" button.
+- Game over overlay: "The tub overflowed", final score (with "New best!" when it beat the best the run started with), a 2×2 grid of run stats (merges, best chain, best streak, shoves), and a "Shove again" button.
 
 ---
 
@@ -212,7 +212,7 @@ Each slime is drawn procedurally on canvas:
 - **Squash and stretch** along the movement direction: stretch up to 20% at high speed (`speed/1600`).
 - **Wobble**: a decaying spring (`wob *= exp(-3.5·dt)`, phase += 17·dt) that scales x/y in opposition. Impacts and merges add to it.
 - **Face**: two eyes with pupils that look along the velocity (or up when waiting); random blinks every 2–6 s; pink cheeks from tier 1 up; a smile by default, an open "O" mouth after merging, a frown in danger.
-- Tiers 7–8 wear a gold **crown**; King Goo's crown has a pink gem.
+- Tiers 7–8 wear a gold **crown**; King Slimer's crown has a pink gem.
 - Splat particles fade in ~0.7 s; floating "+N" text rises and fades over 1 s.
 - Slimes near a merge or blast pull a surprised open-mouth face, strongest closest
   in, out to 1.5× the shockwave's physical reach — so the neighbourhood reacts,
@@ -284,7 +284,7 @@ takes to reach the overflow line.
 | `H` | 620 | 520 |
 | median run | 211 shoves, ~3.7 min | 143 shoves, ~2.5 min |
 | median score | ~16,600 | ~9,300 |
-| King Goo reached | 18/40 runs | 7/40 runs |
+| King Slimer reached | 18/40 runs | 7/40 runs |
 | best-score key | `slimeShoveBest` | `slimeShoveBest:rush` |
 
 Each mode keeps its own best score, so the two are never compared. The chosen

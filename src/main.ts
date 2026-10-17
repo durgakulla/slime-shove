@@ -10,7 +10,7 @@ import { isSoundOn, toggleSound } from './audio';
 import { applyProfile } from './constants';
 import { currentProfile, fit, restart, setPaused, setProfile, start } from './game';
 import { closeHelp, isHelpOpen, openHelp } from './help';
-import { setSoundLabel } from './hud';
+import { setSoundLabel, shareResult } from './hud';
 import { migrateScores, otherProfile, rememberProfile, resolveProfile, type Profile } from './tuning';
 
 function el<T extends HTMLElement>(id: string): T {
@@ -72,6 +72,7 @@ window.addEventListener('keydown', (e) => {
 
 el('rst').addEventListener('click', () => restart());
 el('again').addEventListener('click', () => restart());
+el('share').addEventListener('click', () => void shareResult());
 el('snd').addEventListener('click', () => setSoundLabel(toggleSound()));
 
 // The ladder and score share the stage, so their size changes refit the board too.

@@ -13,7 +13,7 @@ aim angle and no power meter: where you place the slime is the only decision.
 Drag anywhere to move the waiting slime left or right, release to shove. The
 `?` button in the header explains the rest in game.
 
-**Nine tiers**, from Droplet up to King Goo. Two King Goos annihilate each other
+**Nine tiers**, from Droplet up to King Slimer. Two King Slimers annihilate each other
 for a large bonus. The ladder at the foot of the screen tracks how far you've got.
 
 **Three powers**, about 3% of spawns, split evenly and shown in the NEXT preview:

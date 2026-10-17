@@ -81,6 +81,14 @@ export interface Fan {
   on: boolean; // fanOn has fired
 }
 
+/** Totals for one run, shown on the game-over screen. */
+export interface RunStats {
+  merges: number;
+  bestChain: number; // most merges from a single shove
+  bestStreak: number; // most consecutive shoves that each merged
+  shoves: number;
+}
+
 export interface State {
   bodies: Slime[];
   score: number;
@@ -96,6 +104,7 @@ export interface State {
   streak: number;
   seed: number;
   fan?: Fan;
+  run: RunStats;
 }
 
 /**

@@ -60,7 +60,33 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 #over h2{font-family:var(--f-display);font-weight:400;font-size:2.1rem;margin:0;color:var(--hot);text-wrap:balance}
 #over p{margin:0;color:var(--muted);font-size:1rem}
 #over .big{font-size:2.6rem;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+#over #newBest{font-family:var(--f-display);font-size:1rem;color:#ffd84a;margin-top:-6px}
+#over #newBest[hidden]{display:none}
+/* Run stats: a compact 2×2 grid, merges first, so it fits the short Rush board. */
+.runstats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0;width:min(100%,250px)}
+.runstats div{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:4px 8px 5px}
+.runstats dt{font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.runstats dd{margin:0;font-size:1.15rem;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 #over #again{font-size:1.1rem;padding:10px 22px;background:var(--goo);color:#12301f;border-color:#2f8f61}
+.overBtns{display:flex;gap:8px;align-items:stretch}
+/* min-width: the label flips to "Copied!" and the row must not jump. */
+#over #share{font-size:1.1rem;padding:10px 18px;border-color:var(--goo);color:var(--goo);min-width:6.2em}
+#over #shareNote{font-size:.8rem;min-height:0;margin-top:-4px}
+#over #shareNote:empty{display:none}
+/* Short boards (Rush on a small phone) cannot fit the stats plus the install
+   hint at full size, so everything tightens up. Sized off the overlay itself,
+   which is the board, not the viewport. */
+#over{container-type:size}
+@container (max-height:430px){
+  #over{gap:6px;padding:12px}
+  #over h2{font-size:1.45rem}
+  #over p{font-size:.85rem}
+  #over .big{font-size:2rem;line-height:1.1}
+  #over #newBest{margin-top:-4px;font-size:.9rem}
+  .runstats dd{font-size:1rem}
+  #over #again,#over #share{font-size:1rem;padding:8px 14px}
+  #installHint{font-size:.72rem}
+}
 /* Add-to-home-screen offer, revealed after the first game over */
 #install{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:4px}
 #install[hidden]{display:none}
@@ -124,8 +150,11 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 #helpPanel h3 small{text-transform:none;letter-spacing:0;font-size:.74rem;opacity:.75;font-weight:400}
 #helpPanel ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
 #helpPanel li,#helpPanel .modes{font-size:.82rem;line-height:1.4;color:var(--ink);margin:0}
+#helpPanel .modes{margin-top:12px}
 #helpPanel strong{color:var(--goo);font-weight:600}
-#helpPanel .power{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px}
+/* Powers in a 2×2 grid: four short entries, so the sheet stays one glance tall. */
+#powerList{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+#helpPanel .power{display:flex;gap:8px;align-items:center}
 #helpPanel .power canvas{flex:none}
 #helpPanel .power b{display:block;font-size:.86rem;color:var(--ink);margin-bottom:1px}
 #helpPanel .power p{margin:0;font-size:.76rem;line-height:1.35;color:var(--muted)}

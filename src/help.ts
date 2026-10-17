@@ -15,26 +15,26 @@ const POWER_INFO: PowerInfo[] = [
   {
     kind: 'bomb',
     name: 'Bomb',
-    text: 'Explodes on contact, clearing every slime nearby and banking their points. Your way out of a crowded board.',
+    text: 'Clears slimes around it.',
   },
   {
     kind: 'magnet',
     name: 'Magnet',
-    text: 'Sticks to the first slime it hits, or to the back wall, then drags everything nearby together and vanishes. Once stuck, slimes pass right through it, so pairs meet on top of it and merge.',
+    text: 'Pulls nearby slimes together.',
   },
   {
     kind: 'rainbow',
     name: 'Rainbow',
-    text: 'Merges with whatever it touches, becoming the next size up. Perfect for a big slime with no partner.',
+    text: 'Merges with any slime.',
   },
   {
     kind: 'fan',
     name: 'Fan',
-    text: 'Hovers just above the overflow line and blows every slime in the two lit lanes back toward the far wall. It never touches anything itself.',
+    text: 'Blows two lanes to the back.',
   },
 ];
 
-const ICON = 54; // css px
+const ICON = 40; // css px
 
 function paintIcon(cv: HTMLCanvasElement, kind: PowerKind): void {
   const dpr = Math.min(3, window.devicePixelRatio || 1);
