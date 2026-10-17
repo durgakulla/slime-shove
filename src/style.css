@@ -97,7 +97,10 @@ canvas{display:block;touch-action:none;cursor:crosshair}
 .dot{border-radius:50%;opacity:.28;transition:opacity .3s,transform .3s;box-shadow:inset -2px -3px 0 rgba(0,0,0,.25),inset 2px 2px 0 rgba(255,255,255,.35)}
 .rung.on .dot{opacity:1}
 .rung.top .dot{transform:scale(1.12)}
-.rung small{font-size:.56rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* Names wrap to two lines rather than truncating. Every label reserves two
+   lines so the rungs stay the same height and the dots stay in a row. */
+.rung small{font-size:.56rem;color:var(--muted);max-width:100%;text-align:center;line-height:1.15;
+  min-height:2.3em;overflow-wrap:anywhere}
 .rung.on small{color:var(--ink)}
 @media (max-width:380px){.rung small{display:none}}
 @media (prefers-reduced-motion:reduce){.dot{transition:none}}
