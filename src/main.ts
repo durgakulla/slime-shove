@@ -6,6 +6,8 @@ import '@fontsource/fredoka/latin-500.css';
 import '@fontsource/fredoka/latin-600.css';
 import './style.css';
 
+import { inject } from '@vercel/analytics';
+
 import { isSoundOn, toggleSound } from './audio';
 import { applyProfile } from './constants';
 import { currentProfile, fit, restart, setPaused, setProfile, start } from './game';
@@ -25,6 +27,10 @@ function el<T extends HTMLElement>(id: string): T {
   if (!n) throw new Error(`missing #${id}`);
   return n as T;
 }
+
+// Vercel Web Analytics: page views only. In dev it logs to the console
+// instead of sending anything.
+inject();
 
 // Before any saved data is read: carry it over from the old Slime Shove keys,
 // then clear records that were set under an older scoring rule.
