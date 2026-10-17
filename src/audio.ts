@@ -19,8 +19,10 @@ type AudioCtor = typeof AudioContext;
  *   touchend / click are. So input.ts also calls this on release.
  * - The context can be left 'interrupted' (lock screen, a call, switching
  *   apps), not just 'suspended', and must be resumed from either.
- * - Web Audio follows the ring/silent switch by default. Sound here is opt-in
- *   via the toggle, so the session is set to 'playback' to play regardless.
+ * - The audio session is set to 'ambient', the usual choice for games: sounds
+ *   mix with the player's music and follow the ring/silent switch. 'playback'
+ *   was tried to play through the silent switch, but iOS treats it as media:
+ *   it paused the player's music and showed a waveform in the Dynamic Island.
  */
 export function ensureAudio(): void {
   if (!actx) {
@@ -34,9 +36,9 @@ export function ensureAudio(): void {
   }
   if (!actx) return;
   const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-  if (session && session.type !== 'playback') {
+  if (session && session.type !== 'ambient') {
     try {
-      session.type = 'playback';
+      session.type = 'ambient';
     } catch {
       /* older iOS: no audio session API */
     }
