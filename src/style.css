@@ -20,6 +20,12 @@ html,body{height:100%}
   background:var(--bg);z-index:30;pointer-events:none}
 /* Kill pull-to-refresh and rubber-banding so a drag never scrolls the page. */
 html,body{overscroll-behavior:none}
+/* iOS Safari ignores user-scalable=no in the viewport tag, so a quick double
+   tap anywhere off the board (the gaps around it, the ladder, the score,
+   the header) zooms the page. `manipulation` turns off double-tap zoom while
+   still allowing scrolling (the help sheet) and pinch zoom for accessibility.
+   The canvas keeps its stricter touch-action:none below. */
+*{touch-action:manipulation}
 body{
   margin:0;
   background:var(--bg);color:var(--ink);font-family:var(--f-body);

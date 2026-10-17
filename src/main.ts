@@ -32,6 +32,21 @@ function el<T extends HTMLElement>(id: string): T {
 // instead of sending anything.
 inject();
 
+// iOS Safari ignores user-scalable=no and, despite touch-action:manipulation
+// in style.css, still zooms on a quick double tap. Cancelling the second
+// touchend of a quick pair stops the zoom. Only the browser's default is
+// cancelled: pointer events (the game's input) still fire, and scrolling
+// and pinch zoom are untouched. The installed app never needed this.
+let lastTouchEnd = 0;
+document.addEventListener(
+  'touchend',
+  (e) => {
+    if (e.timeStamp - lastTouchEnd < 350) e.preventDefault();
+    lastTouchEnd = e.timeStamp;
+  },
+  { passive: false },
+);
+
 // Before any saved data is read: carry it over from the old Slime Shove keys,
 // then clear records that were set under an older scoring rule.
 migrateStorageKeys();
