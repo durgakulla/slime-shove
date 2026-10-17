@@ -4,7 +4,7 @@
 // prompt. iOS Safari fires nothing and has no API, so all we can do there is
 // tell the player where the button is.
 
-const DISMISS_KEY = 'slimeShoveA2HS';
+const DISMISS_KEY = 'slimeSmashA2HS';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;

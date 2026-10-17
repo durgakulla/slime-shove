@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <!-- user-scalable=no: a drag-driven game cannot afford double-tap zoom mid-shove -->
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Slime Shove</title>
-<meta name="description" content="A casual one-finger merge game. Slide a slime, let go, and shove it up the table. Same sizes merge.">
+<title>Slime Smash</title>
+<meta name="description" content="A casual one-finger merge game. Slide a slime, let go, and launch it up the table. Same sizes merge.">
 <meta name="theme-color" content="#1a1030">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Slime Shove">
+<meta name="apple-mobile-web-app-title" content="Slime Smash">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" href="/icons/favicon.png" sizes="any">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -17,7 +17,7 @@
 <body>
 <div id="topcap" aria-hidden="true"></div>
 <header>
-  <h1>Slime Shove</h1>
+  <h1>Slime Smash</h1>
   <button id="mode" type="button" aria-label="Switch game mode">Classic</button>
   <div class="btns">
     <button id="help" type="button" aria-label="How to play" title="How to play">?</button>
@@ -42,20 +42,20 @@
 
 <div id="stage">
   <div id="wrap">
-    <canvas id="c" aria-label="Slime table. Drag left or right to position the slime, release to shove it straight forward."></canvas>
+    <canvas id="c" aria-label="Slime table. Drag left or right to position the slime, release to launch it straight forward."></canvas>
     <div id="over" hidden>
       <h2>The tub overflowed</h2>
       <p>Final score</p>
       <div class="big" id="final">0</div>
       <p id="newBest" hidden>New best!</p>
       <dl class="runstats">
-        <div><dt>Shoves</dt><dd id="stShoves">0</dd></div>
+        <div><dt>Turns</dt><dd id="stShoves">0</dd></div>
         <div><dt>Merges</dt><dd id="stMerges">0</dd></div>
         <div><dt>Best streak</dt><dd id="stStreak">0</dd></div>
         <div><dt>Best chain</dt><dd id="stChain">–</dd></div>
       </dl>
       <div class="overBtns">
-        <button id="again" type="button">Shove again</button>
+        <button id="again" type="button">Replay</button>
         <button id="share" type="button">Share</button>
       </div>
       <p id="shareNote" role="status"></p>
@@ -76,10 +76,10 @@
   <div class="sheet">
     <h2>How to play</h2>
     <ul>
-      <li>Drag, then let go to shove.</li>
+      <li>Drag, then let go to launch.</li>
       <li>Merging slimes of the <strong>same type</strong> makes a bigger slime and gives you points.</li>
-      <li>More merges in one shove = <strong>more points</strong>.</li>
-      <li>Consecutive shoves with merges = <strong>more points</strong>. A shove with no merge resets it.</li>
+      <li>More merges in one turn = <strong>more points</strong>.</li>
+      <li>Consecutive turns with merges = <strong>more points</strong>. A turn with no merge resets it.</li>
       <li>Don't let slimes settle past the <strong>overflow line</strong>.</li>
     </ul>
     <h3>Powers</h3>

@@ -632,7 +632,7 @@ function draw(): void {
       ctx.fillStyle = 'rgba(246,238,255,.7)';
       ctx.font = '500 12px Fredoka, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Drag to aim, let go to shove', W / 2, LAUNCH_Y + 38);
+      ctx.fillText('Drag to aim, let go to launch', W / 2, LAUNCH_Y + 38);
       ctx.textAlign = 'left';
     } else if (!beatBest && runStartBest > 0 && S.score >= runStartBest * 0.8) {
       // Only nudge once you are genuinely in range, so it stays meaningful.

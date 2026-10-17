@@ -1,9 +1,9 @@
 {
-  "name": "slime-shove",
+  "name": "slime-smash",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "A casual one-finger merge game for phones. Slide, shove, merge.",
+  "description": "A casual one-finger merge game for phones. Slide, smash, merge.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

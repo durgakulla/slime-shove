@@ -62,7 +62,7 @@ export function renderLadder(maxTier: number): void {
 
 const shareNoteEl = el('shareNote');
 const shareBtn = el<HTMLButtonElement>('share');
-const GAME_URL = 'https://slimeshove.durgakulla.com';
+const GAME_URL = 'https://slimesmash.durgakulla.com';
 /** The text the Share button sends, rebuilt on every game over. */
 let shareText = '';
 
@@ -88,13 +88,13 @@ function buildShareText(
       ? ` (My best is ${prevBest.toLocaleString()})`
       : '';
   const lines = [
-    `🟢 Slime Shove · ${mode}`,
+    `🟢 Slime Smash · ${mode}`,
     `I scored ${score.toLocaleString()} points!${best}`,
     '',
-    `💥 ${plural(run.merges, 'merge')} in ${plural(run.shoves, 'shove')}`,
+    `💥 ${plural(run.merges, 'merge')} in ${plural(run.shoves, 'turn')}`,
   ];
-  if (run.bestStreak >= 2) lines.push(`🔥 ${run.bestStreak} shoves in a row with a merge`);
-  if (run.bestChain >= 2) lines.push(`⛓️ ${run.bestChain} merges from one shove`);
+  if (run.bestStreak >= 2) lines.push(`🔥 ${run.bestStreak} turns in a row with a merge`);
+  if (run.bestChain >= 2) lines.push(`⛓️ ${run.bestChain} merges in one turn`);
   lines.push('', 'Can you beat it?');
   return lines.join('\n');
 }

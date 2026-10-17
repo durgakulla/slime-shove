@@ -6,10 +6,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Slime Shove',
-        short_name: 'Slime Shove',
+        name: 'Slime Smash',
+        short_name: 'Slime Smash',
         description:
-          'A casual one-finger merge game. Slide a slime, let go, and shove it up the table. Same sizes merge.',
+          'A casual one-finger merge game. Slide a slime, let go, and launch it up the table. Same sizes merge.',
         start_url: '/',
         scope: '/',
         display: 'standalone',

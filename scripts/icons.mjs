@@ -1,5 +1,5 @@
 // Generates the PWA icons from the same procedural blob the game draws, so the
-// home-screen icon is literally a Slime Shove slime rather than a lookalike.
+// home-screen icon is literally a Slime Smash slime rather than a lookalike.
 //
 //   npm run icons
 

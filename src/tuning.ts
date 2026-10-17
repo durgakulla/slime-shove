@@ -23,23 +23,50 @@ export const PROFILES: Record<string, Profile> = {
     id: 'classic',
     label: 'Classic',
     H: 620,
-    bestKey: 'slimeShoveBest',
+    bestKey: 'slimeSmashBest',
     blurb: 'A long table. Room to plan.',
   },
   rush: {
     id: 'rush',
     label: 'Rush',
     H: 520,
-    bestKey: 'slimeShoveBest:rush',
+    bestKey: 'slimeSmashBest:rush',
     blurb: 'A short table. The line comes fast.',
   },
 };
 
 export const DEFAULT_PROFILE = PROFILES.classic;
 
-const MODE_KEY = 'slimeShoveMode';
-const SCORING_KEY = 'slimeShoveScoring';
+const MODE_KEY = 'slimeSmashMode';
+const SCORING_KEY = 'slimeSmashScoring';
 const SCORING_VERSION = '3';
+
+/**
+ * The game was renamed from Slime Shove to Slime Smash, and its storage keys
+ * with it. Copy anything saved under the old names across once, so players
+ * keep their bests and settings. Storage is per-origin, so this only helps
+ * players who stay on the same address; a new domain starts empty anyway.
+ * Runs before migrateScores(), which reads the scoring key it copies.
+ */
+const RENAMED_KEYS: [string, string][] = [
+  ['slimeShoveBest', 'slimeSmashBest'],
+  ['slimeShoveBest:rush', 'slimeSmashBest:rush'],
+  ['slimeShoveMode', 'slimeSmashMode'],
+  ['slimeShoveScoring', 'slimeSmashScoring'],
+  ['slimeShoveA2HS', 'slimeSmashA2HS'],
+];
+export function migrateStorageKeys(): void {
+  try {
+    for (const [from, to] of RENAMED_KEYS) {
+      const v = localStorage.getItem(from);
+      if (v === null) continue;
+      if (localStorage.getItem(to) === null) localStorage.setItem(to, v);
+      localStorage.removeItem(from);
+    }
+  } catch {
+    /* private mode — nothing stored, nothing to move */
+  }
+}
 
 /**
  * Records set under an older scoring rule are not comparable to current ones,

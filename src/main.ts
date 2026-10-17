@@ -11,7 +11,14 @@ import { applyProfile } from './constants';
 import { currentProfile, fit, restart, setPaused, setProfile, start } from './game';
 import { closeHelp, isHelpOpen, openHelp } from './help';
 import { setSoundLabel, shareResult } from './hud';
-import { migrateScores, otherProfile, rememberProfile, resolveProfile, type Profile } from './tuning';
+import {
+  migrateScores,
+  migrateStorageKeys,
+  otherProfile,
+  rememberProfile,
+  resolveProfile,
+  type Profile,
+} from './tuning';
 
 function el<T extends HTMLElement>(id: string): T {
   const n = document.getElementById(id);
@@ -19,7 +26,9 @@ function el<T extends HTMLElement>(id: string): T {
   return n as T;
 }
 
-// Clear records that were set under the old capped scoring, before any are read.
+// Before any saved data is read: carry it over from the old Slime Shove keys,
+// then clear records that were set under an older scoring rule.
+migrateStorageKeys();
 migrateScores();
 
 // Board height is per-mode, so this must happen before anything reads it.

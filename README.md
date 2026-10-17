@@ -1,4 +1,4 @@
-# Slime Shove
+# Slime Smash
 
 A one-finger merge game for phones. Slide a slime along the launch line, let go,
 and it shoots straight up the board. Two slimes of the same size merge into the
